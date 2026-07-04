@@ -1,0 +1,23 @@
+# vital ○ — Netlify configuration
+# Web Bluetooth requires a secure context (HTTPS). Netlify serves HTTPS
+# automatically, so no extra work is needed — but these headers make the
+# Bluetooth + API features behave correctly across browsers.
+
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Allow this page to use Web Bluetooth
+    Permissions-Policy = "bluetooth=(self)"
+    # Standard security headers
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# SPA-style fallback (single file app)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
