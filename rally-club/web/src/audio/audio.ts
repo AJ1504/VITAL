@@ -17,7 +17,7 @@ export interface Volumes {
   sfx: number;
 }
 
-const BPM = 122;
+const BPM = 120;
 const SPB = 60 / BPM; // seconds per beat
 // Fmaj7 – Em7 – Dm7 – Cmaj7 (warm, descending sunset progression). MIDI notes.
 const CHORDS = [
@@ -39,6 +39,7 @@ export class AudioEngine {
   private crowdBus: GainNode;
   private sfxBus: GainNode;
   private crowdBed: GainNode;
+  private reverb: ConvolverNode;
   private noiseBuf: AudioBuffer;
   private nextBeatTime = 0;
   private beatIndex = 0;
@@ -67,8 +68,21 @@ export class AudioEngine {
     this.musicBus = c.createGain();
     this.musicFilter.connect(this.musicDuck).connect(this.panner).connect(this.musicBus).connect(this.master);
 
+    // Stadium reverb (generated impulse response, ~2.4 s): sends from music, crowd and SFX.
+    this.reverb = c.createConvolver();
+    this.reverb.buffer = this.makeImpulse(2.4, 2.8);
+    const wet = c.createGain();
+    wet.gain.value = 0.32;
+    this.reverb.connect(wet).connect(this.master);
+    const musicSend = c.createGain();
+    musicSend.gain.value = 0.18;
+    this.musicBus.connect(musicSend).connect(this.reverb);
+
     this.crowdBus = c.createGain();
     this.crowdBus.connect(this.master);
+    const crowdSend = c.createGain();
+    crowdSend.gain.value = 0.55;
+    this.crowdBus.connect(crowdSend).connect(this.reverb);
     this.sfxBus = c.createGain();
     this.sfxBus.connect(this.master);
 
@@ -105,6 +119,22 @@ export class AudioEngine {
     lfo.start();
 
     this.setVolumes({ master: 0.8, music: 0.7, crowd: 0.6, sfx: 0.8 });
+  }
+
+  private makeImpulse(seconds: number, decay: number): AudioBuffer {
+    const c = this.ctx;
+    const len = Math.floor(c.sampleRate * seconds);
+    const buf = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        // Early reflections then a smooth exponential tail; a touch darker over time.
+        const early = i < c.sampleRate * 0.08 && Math.random() < 0.02 ? 0.6 : 0;
+        d[i] = ((Math.random() * 2 - 1) * Math.pow(1 - t, decay) + early) * (1 - t * 0.3);
+      }
+    }
+    return buf;
   }
 
   async resume(): Promise<void> {
@@ -244,16 +274,18 @@ export class AudioEngine {
     if (beat === 1 || beat === 3) this.clap(t);
     // Offbeat open hat, 16th closed hats.
     this.hat(t + SPB / 2, 0.09, 0.12);
-    this.hat(t + SPB / 4, 0.03, 0.05);
-    this.hat(t + (3 * SPB) / 4, 0.03, 0.05);
+    this.hat(t + SPB / 4, 0.025, 0.03);
+    this.hat(t + (3 * SPB) / 4, 0.025, 0.03);
     if (this.building) this.clap(t + SPB / 2, 0.5);
     // Syncopated octave bass (nu-disco).
     const root = mtof(BASS[bar % 4]);
     this.bass(root, t, SPB * 0.45);
     this.bass(root * 2, t + SPB / 2, SPB * 0.4);
     // Chord stab on the "and" of 2 and on 4 (pumped).
-    if (beat === 1) chord.forEach((m) => this.stab(mtof(m), t + SPB / 2, SPB * 0.6));
-    if (beat === 3 && bar % 2 === 1) chord.forEach((m) => this.stab(mtof(m), t, SPB * 0.9));
+    // Electric-piano comping (FM "tine" voice): warm lounge / deep-house chords.
+    if (beat === 0) chord.forEach((m, k) => this.ep(mtof(m + 12), t + k * 0.012, SPB * 1.6, 0.05));
+    if (beat === 1) chord.forEach((m, k) => this.ep(mtof(m + 12), t + SPB * 0.75 + k * 0.01, SPB * 0.6, 0.035));
+    if (beat === 2 && bar % 2 === 1) chord.forEach((m) => this.stab(mtof(m), t + SPB / 2, SPB * 0.5));
     // A sparkle melody every other bar.
     if (bar % 2 === 0 && beat === 0) {
       const top = chord[3] + 12;
@@ -319,6 +351,33 @@ export class AudioEngine {
     o.connect(f).connect(g).connect(this.musicFilter);
     o.start(t);
     o.stop(t + dur + 0.05);
+  }
+
+  /** Two-operator FM electric piano. */
+  private ep(freq: number, t: number, dur: number, gain: number): void {
+    const c = this.ctx;
+    const car = c.createOscillator();
+    car.frequency.value = freq;
+    const mod = c.createOscillator();
+    mod.frequency.value = freq * 14;
+    const modGain = c.createGain();
+    modGain.gain.setValueAtTime(freq * 1.6, t);
+    modGain.gain.exponentialRampToValueAtTime(freq * 0.05, t + 0.25);
+    mod.connect(modGain).connect(car.frequency);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const tremolo = c.createOscillator();
+    tremolo.frequency.value = 4.5;
+    const tg = c.createGain();
+    tg.gain.value = gain * 0.25;
+    tremolo.connect(tg).connect(g.gain);
+    car.connect(g).connect(this.musicFilter);
+    for (const o of [car, mod, tremolo]) {
+      o.start(t);
+      o.stop(t + dur + 0.05);
+    }
   }
 
   private stab(freq: number, t: number, dur: number): void {
@@ -397,10 +456,14 @@ export class AudioEngine {
   }
 
   private applause(t: number, k: number, dur: number): void {
-    const n = Math.floor(60 * dur * k);
+    const n = Math.floor(110 * dur * k);
     for (let i = 0; i < n; i++) {
       const tt = t + Math.random() * dur * (1 - (Math.random() * i) / n / 2);
-      this.noiseHit(tt, 0.03, 0.12 * k * (1 - (tt - t) / (dur * 1.2)), 'bandpass', 1500 + Math.random() * 2000, 1.5, this.crowdBus);
+      // Each clap: short band-passed noise burst at a random position across the stands.
+      const pan = this.ctx.createStereoPanner();
+      pan.pan.value = Math.random() * 2 - 1;
+      pan.connect(this.crowdBus);
+      this.noiseHit(tt, 0.025 + Math.random() * 0.02, 0.12 * k * (1 - (tt - t) / (dur * 1.2)), 'bandpass', 1100 + Math.random() * 2600, 1.2, pan);
     }
   }
 

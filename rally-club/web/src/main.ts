@@ -14,6 +14,7 @@ if (params.get('points')) settings.pointsToWin = Number(params.get('points'));
 if (params.get('assist')) settings.assist = params.get('assist') as Settings['assist'];
 if (params.has('mute')) settings.voice = false;
 // QA / automation params: graphics preset override and simulation speed multiplier.
+if (params.get('venue')) settings.venue = params.get('venue') as Settings['venue'];
 if (params.get('gfx')) settings.graphics = params.get('gfx') as Settings['graphics'];
 
 const game = new Game($('#stage'), settings);
@@ -111,6 +112,16 @@ $$('.tabs button').forEach((b) =>
     $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== b.dataset.tab));
   }),
 );
+// Courts: switching venue rebuilds the world, so save and reload.
+$$<HTMLButtonElement>('[data-venue]').forEach((b) => {
+  b.classList.toggle('active', b.dataset.venue === settings.venue);
+  b.addEventListener('click', () => {
+    if (b.dataset.venue === game.settings.venue) return;
+    game.settings.venue = b.dataset.venue as Settings['venue'];
+    saveSettings(game.settings);
+    location.reload();
+  });
+});
 $('#btn-quick').addEventListener('click', () => start({ mode: 'match' }));
 $('#card-match').addEventListener('click', () => start({ mode: 'match' }));
 $('#btn-practice').addEventListener('click', () => start({ mode: 'practice' }));
@@ -212,7 +223,7 @@ window.__rally = {
   press: (shot: 'drive' | 'dink' | 'lob') => game.input.press(shot),
   state: () => {
     const sim = game.sim;
-    if (!sim) return { screen: 'menu' };
+    if (!sim) return { screen: 'menu', assetsReady: game.assetsReady };
     const st = sim.rules.state;
     return {
       screen: !$('#results').hidden ? 'results' : game.paused ? 'pause' : 'hud',
@@ -226,6 +237,7 @@ window.__rally = {
       ballHeld: sim.ballHeld,
       practice: { ...sim.practice },
       crowd: game.crowd.state,
+      assetsReady: game.assetsReady,
       crowdCount: game.crowd.count,
     };
   },

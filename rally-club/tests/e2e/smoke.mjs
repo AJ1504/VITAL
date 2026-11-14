@@ -42,7 +42,10 @@ await new Promise((resolve, reject) => {
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
 const results = [];
 const openContexts = [];
+// ONLY=5 node tests/e2e/smoke.mjs  -> run just the test whose name starts with "5."
+const ONLY = process.env.ONLY;
 async function test(name, fn) {
+  if (ONLY && !name.startsWith(`${ONLY}.`)) return;
   const t0 = Date.now();
   try {
     await fn();
@@ -83,7 +86,7 @@ async function waitFor(page, pred, timeoutMs, label) {
 }
 
 await test('1. menu renders with the harness label and no errors', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute`);
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&gfx=low`);
   await page.waitForTimeout(2500);
   assert((await state(page)).screen === 'menu', 'menu screen');
   const badge = await page.textContent('#harness-badge');
@@ -91,10 +94,10 @@ await test('1. menu renders with the harness label and no errors', async () => {
   for (const tab of ['Home', 'Play', 'Sports', 'My Player', 'Friends', 'Courts', 'Settings']) {
     assert(await page.isVisible(`.tabs button:has-text("${tab}")`), `tab ${tab}`);
   }
-  await page.screenshot({ path: `${shots}01-menu.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}01-menu.png` });
   await page.click('.tabs button:has-text("Settings")');
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${shots}02-settings.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}02-settings.png` });
   assert(errors.length === 0, `page errors: ${errors.join(' | ')}`);
   await ctx.close();
 });
@@ -109,7 +112,7 @@ await test('2. P1 ACCEPT — human serves with the keyboard and completes a scor
   const served = await waitFor(page, (s) => s.phase === 'in_play' || s.pointsPlayed > 0, 5000, 'serve in play');
   assert(!served.ballHeld, 'ball left the server');
   await page.waitForTimeout(700);
-  await page.screenshot({ path: `${shots}03-rally.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}03-rally.png` });
   // Keep swinging whenever the ball comes back (casual assist auto-moves and waits for the bounce).
   const end = Date.now() + 180000;
   let s = await state(page);
@@ -122,18 +125,18 @@ await test('2. P1 ACCEPT — human serves with the keyboard and completes a scor
   const scored = s.score[0] + s.score[1] > 0 || s.server === 1;
   assert(scored, 'rally produced a score change or side out');
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `${shots}04-point.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}04-point.png` });
   console.log(`       rally result: score ${s.score.join('-')}, server ${s.server}, points played ${s.pointsPlayed}`);
   assert(errors.length === 0, `page errors: ${errors.join(' | ')}`);
   await ctx.close();
 });
 
 await test('3. pause menu opens and resumes', async () => {
-  const { page, ctx } = await openPage(`${BASE}?mute&start=match&seed=4`);
+  const { page, ctx } = await openPage(`${BASE}?mute&start=match&seed=4&gfx=low`);
   await waitFor(page, (s) => s.screen === 'hud', 10000, 'hud');
   await page.keyboard.press('Escape');
   await waitFor(page, (s) => s.screen === 'pause', 3000, 'pause');
-  await page.screenshot({ path: `${shots}05-pause.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}05-pause.png` });
   await page.click('#btn-resume');
   await waitFor(page, (s) => s.screen === 'hud', 3000, 'resume');
   await ctx.close();
@@ -150,31 +153,31 @@ await test('4. practice mode feeds balls and records results', async () => {
     s = await state(page);
   }
   assert(s.practice.feeds >= 3, `machine fed balls (${JSON.stringify(s.practice)})`);
-  await page.screenshot({ path: `${shots}06-practice.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}06-practice.png` });
   assert(errors.length === 0, `page errors: ${errors.join(' | ')}`);
   await ctx.close();
 });
 
 await test('5. autoplay (AI vs AI) finishes a full game to 3 and shows results + celebration', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute&autoplay&seed=2&points=3&gfx=low&speed=6`);
-  await waitFor(page, (s) => s.phase === 'game_over', 300000, 'game over');
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&autoplay&seed=2&points=3&gfx=low&speed=8`);
+  await waitFor(page, (s) => s.phase === 'game_over', 900000, 'game over');
   await page.waitForTimeout(4000); // let the celebration camera settle (software rendering is ~5 fps)
-  await page.screenshot({ path: `${shots}07-celebration.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}07-celebration.png` });
   const s = await waitFor(page, (st) => st.screen === 'results', 30000, 'results screen');
   assert(s.winner !== null, 'winner recorded');
-  await page.screenshot({ path: `${shots}08-results.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}08-results.png` });
   assert(errors.length === 0, `page errors: ${errors.join(' | ')}`);
   await ctx.close();
 });
 
 await test('6. phone-sized viewport shows touch fallback controls', async () => {
-  const { page, ctx } = await openPage(`${BASE}?mute&start=match&seed=6`, { ...devices['iPhone 13'] });
+  const { page, ctx } = await openPage(`${BASE}?mute&start=match&seed=6&gfx=low`, { ...devices['iPhone 13'] });
   await waitFor(page, (s) => s.screen === 'hud', 10000, 'hud');
   await page.waitForTimeout(1000);
   assert(await page.isVisible('#touch-controls button[data-shot="drive"]'), 'touch swing button visible');
   await page.tap('#touch-controls button[data-shot="drive"]');
   await waitFor(page, (s) => s.phase === 'in_play' || s.pointsPlayed > 0, 5000, 'touch serve');
-  await page.screenshot({ path: `${shots}09-mobile.png` });
+  await page.screenshot({ timeout: 240000, path: `${shots}09-mobile.png` });
   await ctx.close();
 });
 

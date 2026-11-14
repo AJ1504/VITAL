@@ -54,6 +54,22 @@ Unreal workstation **after** the module compiles there (see Blockers).
 | Unreal Automation tests | ✅ source | ⛔ **Blocked** | Same cases pass in CoreTests |
 | Unreal level `L_SunsetRooftop`, meshes, Animation Blueprint, MetaSound DJ set, Input assets | ❌ | ⛔ **Blocked** | Editor-authored binary assets; steps in `unreal/Content/README.md` |
 
+## Pass 2 — visual quality & regal identity (14 Nov 2026)
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| **The Members’ Lawn** venue (default): striped championship lawn with baseline wear, bottle-green backstops with gold lettering, 12-row bowl on four sides under cantilevered canopies, claret Members’ Box, ivy corner towers, hydrangea borders, scoreboard with live score + working clock, garden bandstand DJ | ✅ | ✅ e2e (loads, plays) + reviewed stills | Venue switch in Courts tab |
+| Officials & ball crew: chair umpire, line judges, ball kids (seated/crouch poses, heads track the ball) | ✅ | ✅ visual review | |
+| Real CC0 assets (Poly Haven): HDRI sky + image-based lighting, PBR grass/concrete/brick/plaster/paving/wood/leather, shrub / potted-plant / planter models | ✅ | ✅ loads without errors (Medium) | ~40 MB in `web/public/assets`; skipped on Low |
+| Rendering: soft shadows on all presets (1k/2k/4k maps), GTAO ambient occlusion (High), bloom (Medium/High), SMAA, merged static geometry | ✅ | ✅ stills (Medium) | High (GTAO) frames not captured: too slow on software rendering |
+| Realistic body proportions (players, officials, crowd), knee joints, all-white kit with trims, visors, boaters / panamas, summer-party crowd wardrobe | ✅ | ✅ visual review | Still procedural models — see Blockers |
+| Regal identity: original crest, Cormorant Garamond / Manrope, ivory–bottle–gold palette, broadcast score bug, restyled menus/toasts/subtitles | ✅ | ✅ e2e + stills | |
+| Audio: stadium convolution reverb, FM electric-piano lounge-house DJ set at 120 BPM, wide stereo applause, umpire line/score calls, British voice preference for umpire & commentary | ✅ | ⛔ not audible headless | |
+
+**Remaining visual gap:** characters are still built from primitives. Photoreal or high-end stylised
+people need rigged, animated human models (e.g. MetaHumans in the Unreal build, or licensed/CC0 glTF
+characters). Fetching third-party character packs from GitHub was not permitted in this session.
+
 ## Later phases
 
 | Phase | Feature | Status |

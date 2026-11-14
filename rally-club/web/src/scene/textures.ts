@@ -137,3 +137,111 @@ export function signTexture(text: string, sub: string, bg: number, fg: number): 
   t.anisotropy = 4;
   return t;
 }
+
+/** Championship lawn: mowing stripes along the court plus baseline wear. Drawn 1px = 2.5 cm. */
+export function lawnTexture(widthM: number, lengthM: number, stripeM: number, light: number, dark: number, worn: number, wear: { halfLength: number; halfWidth: number } | null): THREE.CanvasTexture {
+  const ppm = 40;
+  const W = Math.round(widthM * ppm);
+  const H = Math.round(lengthM * ppm);
+  const [c, g] = canvas(W, H);
+  const hexc = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+  const stripes = Math.ceil(lengthM / stripeM);
+  for (let i = 0; i < stripes; i++) {
+    g.fillStyle = hexc(i % 2 === 0 ? light : dark);
+    g.fillRect(0, i * stripeM * ppm, W, stripeM * ppm + 1);
+  }
+  // Blade-level noise.
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 18;
+    d[i] += n;
+    d[i + 1] += n * 1.2;
+    d[i + 2] += n * 0.6;
+  }
+  g.putImageData(img, 0, 0);
+  if (wear) {
+    // Worn patches behind each baseline and along the centre where players stand.
+    const r = (worn >> 16) & 255;
+    const gg = (worn >> 8) & 255;
+    const b = worn & 255;
+    for (const s of [1, -1]) {
+      const cz = H / 2 + s * wear.halfLength * ppm;
+      const grd = g.createRadialGradient(W / 2, cz, 0, W / 2, cz, 2.6 * ppm);
+      grd.addColorStop(0, `rgba(${r},${gg},${b},0.75)`);
+      grd.addColorStop(0.6, `rgba(${r},${gg},${b},0.35)`);
+      grd.addColorStop(1, `rgba(${r},${gg},${b},0)`);
+      g.save();
+      g.translate(W / 2, cz);
+      g.scale(1.7, 0.75);
+      g.translate(-W / 2, -cz);
+      g.fillStyle = grd;
+      g.fillRect(0, cz - 3 * ppm, W, 6 * ppm);
+      g.restore();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/** Ivy-covered wall. */
+export function ivyTexture(): THREE.CanvasTexture {
+  const [c, g] = canvas(256, 256);
+  g.fillStyle = '#24461f';
+  g.fillRect(0, 0, 256, 256);
+  const greens = ['#2f5a2c', '#3c6e34', '#28512a', '#4a7d3c', '#1f3d1d'];
+  for (let i = 0; i < 1400; i++) {
+    g.fillStyle = greens[i % greens.length];
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const s = 4 + Math.random() * 7;
+    g.beginPath();
+    g.ellipse(x, y, s, s * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+    g.fill();
+  }
+  return tex(c, 6, 1);
+}
+
+/** Painted wall lettering on the backstop (gold on bottle green). */
+export function backstopTexture(text: string, bg: number, fg: number, repeat = 1): THREE.CanvasTexture {
+  const [c, g] = canvas(2048, 128);
+  g.fillStyle = `#${bg.toString(16).padStart(6, '0')}`;
+  g.fillRect(0, 0, 2048, 128);
+  g.fillStyle = `#${fg.toString(16).padStart(6, '0')}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = '600 54px "Cormorant Garamond", Georgia, serif';
+  g.letterSpacing = '18px';
+  g.fillText(text, 1024, 68);
+  g.fillRect(0, 10, 2048, 2);
+  g.fillRect(0, 116, 2048, 2);
+  return tex(c, repeat, 1);
+}
+
+/** Soft cumulus clouds painted onto a sky dome texture. */
+export function cloudSkyTexture(top: string, horizon: string): THREE.CanvasTexture {
+  const [c, g] = canvas(1024, 512);
+  const grd = g.createLinearGradient(0, 0, 0, 512);
+  grd.addColorStop(0, top);
+  grd.addColorStop(0.55, horizon);
+  grd.addColorStop(1, horizon);
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 1024, 512);
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * 1024;
+    const y = 120 + Math.random() * 180;
+    for (let k = 0; k < 9; k++) {
+      const r = 18 + Math.random() * 40;
+      const cg = g.createRadialGradient(x + k * 14, y + Math.random() * 10, 0, x + k * 14, y, r);
+      cg.addColorStop(0, 'rgba(255,255,255,0.55)');
+      cg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = cg;
+      g.fillRect(x + k * 14 - r, y - r, r * 2, r * 2);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}

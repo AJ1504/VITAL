@@ -12,6 +12,11 @@ by the project; anything else needs a licence reference and the person who verif
 | Crowd bed, cheer, applause, gasp; paddle, bounce, net SFX | Audio (synthesised) | Original — `audio.ts` | Project-owned | Claude Code pass 1, 2026-11-14 | |
 | Commentary script (all lines) | Text | Original — `shared/src/commentary.ts` | Project-owned | Claude Code pass 1, 2026-11-14 | Voice in the harness is the **browser's built-in TTS** (temporary, not shipped) |
 | UI fonts: Fraunces, DM Sans | Font | Google Fonts | SIL Open Font License 1.1 | Claude Code pass 1, 2026-11-14 | Loaded from fonts.googleapis.com; self-host before ship |
+| HDRI sky `kloofendal_48d_partly_cloudy_puresky` (2k) | HDRI | Poly Haven — polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky | CC0 1.0 | Claude Code pass 2, 2026-11-14 | `web/public/assets/hdri/sky_2k.hdr` |
+| PBR textures: `leafy_grass` (2k), `concrete_floor_02`, `white_plaster_02`, `red_brick_03`, `precast_stone_paving`, `wood_table_001`, `leather_red_02` (1k) | Textures | Poly Haven — polyhaven.com/textures | CC0 1.0 | Claude Code pass 2, 2026-11-14 | `web/public/assets/textures/<id>/` (colour, normal-GL, roughness, AO) |
+| Models: `shrub_02`, `potted_plant_02`, `planter_box_01` (1k glTF) | 3D | Poly Haven — polyhaven.com/models | CC0 1.0 | Claude Code pass 2, 2026-11-14 | `web/public/assets/models/<id>/`; re-download with `python3 scripts/fetch-assets.py` |
+| Members’ Lawn venue, crest, officials, crowd hats, lawn/ivy/backstop/scoreboard/clock textures | 3D + textures (procedural) + SVG | Original — `membersLawn.ts`, `textures.ts`, `index.html` | Project-owned | Claude Code pass 2, 2026-11-14 | Original design; evokes a grass-court championship without using any tournament’s marks |
+| UI fonts: Cormorant Garamond, Manrope | Font | Google Fonts | SIL Open Font License 1.1 | Claude Code pass 2, 2026-11-14 | Self-host before ship |
 | Three.js 0.170.0 | Library | npm | MIT | Claude Code pass 1, 2026-11-14 | |
 | Vite 6.3.5, TypeScript 5.8.3 | Dev tooling | npm | MIT / Apache-2.0 | Claude Code pass 1, 2026-11-14 | Not shipped |
 | `/Engine/BasicShapes/Sphere` (ball placeholder in UE) | 3D | Unreal Engine | Unreal EULA | — | Replace with project ball mesh |

@@ -11,8 +11,10 @@ export interface Venue {
   root: THREE.Group;
   sun: THREE.DirectionalLight;
   /** Seats for spectators: position + facing yaw. */
-  seats: { pos: THREE.Vector3; yaw: number; standing: boolean }[];
+  seats: { pos: THREE.Vector3; yaw: number; standing: boolean; members?: boolean }[];
   djAnchor: THREE.Vector3;
+  /** Facing of the DJ character (radians about +y; 0 faces -z). */
+  djYaw?: number;
   djBooth: THREE.Group;
   djLights: THREE.Mesh[];
   stringLights: THREE.InstancedMesh;

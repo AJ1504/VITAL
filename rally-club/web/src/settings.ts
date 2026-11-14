@@ -4,8 +4,11 @@ import type { AssistLevel } from '../../shared/src/match.ts';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type GraphicsPreset = 'low' | 'medium' | 'high';
 
+export type VenueId = 'lawn' | 'rooftop';
+
 export interface Settings {
   playerName: string;
+  venue: VenueId;
   assist: AssistLevel;
   difficulty: Difficulty;
   pointsToWin: number;
@@ -25,6 +28,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   playerName: 'You',
+  venue: 'lawn',
   assist: 'classic',
   difficulty: 'medium',
   pointsToWin: 11,

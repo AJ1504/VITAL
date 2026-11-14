@@ -11,9 +11,17 @@ import { type ControlInput, type GameMode, MatchSim, NO_INPUT, type SimEvent } f
 import type { FaultReason } from '../../shared/src/rules/pickleball.ts';
 import { AudioEngine } from './audio/audio.ts';
 import { InputManager } from './input/input.ts';
-import { type Look, type Rig, animateCharacter, createCharacter } from './scene/character.ts';
-import { Crowd } from './scene/crowd.ts';
-import { PALETTE } from './scene/palette.ts';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { type Look, type Rig, animateCharacter, createCharacter, poseCrouch, poseSeated } from './scene/character.ts';
+import { Crowd, type CrowdOptions } from './scene/crowd.ts';
+import { type LawnExtras, type Official, buildMembersLawn } from './scene/membersLawn.ts';
+import { PALETTE, ROYAL, SUMMER_OUTFITS } from './scene/palette.ts';
 import { radialTexture } from './scene/textures.ts';
 import { type Venue, buildVenue } from './scene/venue.ts';
 import type { Settings } from './settings.ts';
@@ -88,7 +96,8 @@ export class Game {
   private camLook = new THREE.Vector3(0, 0, -1);
   private names: [string, string] = ['You', 'Rival'];
   private stats: MatchStats = { longestRally: 0, perfect: [0, 0], aces: [0, 0], points: 0, durationS: 0 };
-  private resultTimer = -1;
+  /** Wall-clock time (ms) at which to show the results screen; -1 = none. */
+  private resultAt = -1;
   private winner: Side | null = null;
   paused = false;
   /** QA-only: simulation steps per rendered frame (set via ?speed=N). */
@@ -111,23 +120,60 @@ export class Game {
 
     this.audio = new AudioEngine();
     const tmpSim = new MatchSim();
-    this.venue = buildVenue(this.scene, tmpSim.court);
-    this.crowd = new Crowd(this.venue.seats, 1);
+    const regal = settings.venue !== 'rooftop';
+    if (regal) {
+      const v = buildMembersLawn(this.scene, tmpSim.court);
+      this.venue = v;
+      this.lawn = v.extras;
+      this.crowdOpts = { outfits: SUMMER_OUTFITS, hatChance: 0.32, memberOutfits: [ROYAL.navy, ROYAL.navy, 0x2b3a2f, ROYAL.claret, 0xf5efe1, 0xffffff] };
+    } else {
+      this.venue = buildVenue(this.scene, tmpSim.court);
+    }
+    // Image-based lighting: soft reflections on paddles, rails, brass and skin.
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = regal ? 0.35 : 0.25;
+    this.crowd = new Crowd(this.venue.seats, 1, this.crowdOpts);
     this.scene.add(this.crowd.group);
 
     const shadowTex = radialTexture('rgba(40,20,10,0.5)');
-    const looks: [Look, Look] = [
-      { skin: 0xe8b38f, hair: 0x2b1d14, shirt: PALETTE.coral, shorts: PALETTE.cream, shoes: 0xffffff, paddle: PALETTE.cobalt, hairStyle: 'cap' },
-      { skin: 0x7a4f33, hair: 0x1b1b1b, shirt: PALETTE.cobalt, shorts: PALETTE.cream, shoes: 0xffffff, paddle: PALETTE.gold, hairStyle: 'ponytail' },
-    ];
+    // Championship whites on the lawn (claret / navy trims tell the players apart); club colours on the rooftop.
+    const looks: [Look, Look] = regal
+      ? [
+          { skin: 0xe8b38f, hair: 0x5a3a22, shirt: 0xffffff, shorts: 0xffffff, shoes: 0xffffff, paddle: ROYAL.claret, hairStyle: 'visor', trim: ROYAL.claret },
+          { skin: 0x7a4f33, hair: 0x1b1b1b, shirt: 0xffffff, shorts: 0xffffff, shoes: 0xffffff, paddle: ROYAL.navy, hairStyle: 'ponytail', trim: ROYAL.navy },
+        ]
+      : [
+          { skin: 0xe8b38f, hair: 0x2b1d14, shirt: PALETTE.coral, shorts: PALETTE.cream, shoes: 0xffffff, paddle: PALETTE.cobalt, hairStyle: 'cap' },
+          { skin: 0x7a4f33, hair: 0x1b1b1b, shirt: PALETTE.cobalt, shorts: PALETTE.cream, shoes: 0xffffff, paddle: PALETTE.gold, hairStyle: 'ponytail' },
+        ];
     this.rigs = [createCharacter(looks[0], shadowTex), createCharacter(looks[1], shadowTex)];
     for (const r of this.rigs) this.scene.add(r.root);
 
     // DJ character in the booth.
-    const dj = createCharacter({ skin: 0xc98e66, hair: 0xd9b26a, shirt: PALETTE.lavender, shorts: PALETTE.ink, shoes: PALETTE.cream, paddle: PALETTE.ink, hairStyle: 'bun' }, shadowTex);
+    const dj = createCharacter(
+      regal
+        ? { skin: 0xc98e66, hair: 0x2b1d14, shirt: 0xf5efe1, shorts: ROYAL.navy, shoes: 0x3b2a1e, paddle: PALETTE.ink, hairStyle: 'short', trousers: ROYAL.navy, trim: ROYAL.gold }
+        : { skin: 0xc98e66, hair: 0xd9b26a, shirt: PALETTE.lavender, shorts: PALETTE.ink, shoes: PALETTE.cream, paddle: PALETTE.ink, hairStyle: 'bun' },
+      shadowTex,
+    );
     dj.paddle.visible = false;
     dj.root.position.copy(this.venue.djAnchor);
-    dj.root.rotation.y = Math.PI; // facing the court
+    dj.root.rotation.y = this.venue.djYaw ?? Math.PI; // facing the court
+
+    // Officials and ball crew (Members' Lawn).
+    for (const o of this.lawn?.officials ?? []) {
+      const look: Look =
+        o.kind === 'ballkid'
+          ? { skin: [0xf6d3b3, 0xa4704b, 0xe8b38f, 0x5a3825][this.officials.length % 4], hair: 0x2b1d14, shirt: ROYAL.bottle, shorts: ROYAL.bottle, shoes: 0xffffff, paddle: 0, hairStyle: 'short', trim: ROYAL.gold }
+          : { skin: [0xe8b38f, 0xc98e66, 0x7a4f33, 0xf6d3b3, 0xa4704b][this.officials.length % 5], hair: 0x9a9a9a, shirt: ROYAL.navy, shorts: 0xe9e2cf, shoes: 0x3b2a1e, paddle: 0, hairStyle: 'panama', trim: ROYAL.claret, trousers: 0xe9e2cf };
+      const rig = createCharacter(look, shadowTex);
+      rig.paddle.visible = false;
+      rig.root.position.copy(o.pos);
+      rig.root.rotation.y = o.yaw;
+      this.scene.add(rig.root);
+      this.officials.push({ o, rig });
+    }
     this.scene.add(dj.root);
     this.djRig = dj;
 
@@ -158,7 +204,7 @@ export class Game {
     this.scene.add(this.machine);
 
     // Confetti + sparkle VFX.
-    const confettiColors = [PALETTE.coral, PALETTE.gold, PALETTE.cream, PALETTE.lavender, PALETTE.cobalt];
+    const confettiColors = regal ? [ROYAL.gold, ROYAL.ivory, ROYAL.claret, 0xffffff, ROYAL.bottle] : [PALETTE.coral, PALETTE.gold, PALETTE.cream, PALETTE.lavender, PALETTE.cobalt];
     this.confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.08, 0.14), new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.6 }), 500);
     const col = new THREE.Color();
     for (let i = 0; i < 500; i++) {
@@ -170,25 +216,57 @@ export class Game {
     this.sparkles = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.22, 24), new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
     this.scene.add(this.sparkles);
 
+    // Post-processing: ground-truth ambient occlusion, gentle bloom on highlights, SMAA, tone-mapped output.
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.gtao = new GTAOPass(this.scene, this.camera, 1, 1);
+    this.gtao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1, scale: 1.1, samples: 12 });
+    this.composer.addPass(this.gtao);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.5, 0.92);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+    this.smaa = new SMAAPass(1, 1);
+    this.composer.addPass(this.smaa);
+
     this.applySettings(settings);
+    // Real CC0 assets (HDRI sky, PBR materials, garden models) on Medium/High.
+    if (this.lawn && settings.graphics !== 'low') {
+      void this.lawn.enhance(this.renderer, this.scene).then(() => {
+        this.assetsReady = true;
+        this.onAssetsReady?.();
+      });
+    } else this.assetsReady = true;
     window.addEventListener('resize', () => this.resize());
     this.resize();
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
   private djRig: Rig;
+  private lawn: LawnExtras | null = null;
+  private officials: { o: Official; rig: Rig }[] = [];
+  private composer: EffectComposer | null = null;
+  private gtao: GTAOPass | null = null;
+  private bloom: UnrealBloomPass | null = null;
+  private smaa: SMAAPass | null = null;
+  private crowdOpts: CrowdOptions = {};
+  /** True once optional CC0 assets have finished loading (or were skipped). */
+  assetsReady = false;
+  onAssetsReady: (() => void) | null = null;
 
   applySettings(s: Settings): void {
     this.settings = s;
     const pr = s.graphics === 'low' ? 1 : s.graphics === 'medium' ? Math.min(devicePixelRatio, 1.5) : Math.min(devicePixelRatio, 2);
     this.renderer.setPixelRatio(pr);
-    this.renderer.shadowMap.enabled = s.graphics !== 'low';
-    this.venue.sun.shadow.mapSize.setScalar(s.graphics === 'high' ? 2048 : 1024);
+    this.renderer.shadowMap.enabled = true; // shadows on every preset; Low just uses a smaller map
+    this.renderer.shadowMap.needsUpdate = true;
+    this.venue.sun.shadow.mapSize.setScalar(s.graphics === 'high' ? 4096 : s.graphics === 'medium' ? 2048 : 1024);
+    if (this.gtao) this.gtao.enabled = s.graphics === 'high';
+    if (this.bloom) this.bloom.enabled = s.graphics !== 'low';
     this.venue.sun.shadow.map?.dispose();
     (this.venue.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
     const density = s.graphics === 'low' ? 0.4 : s.graphics === 'medium' ? 0.7 : 1;
     this.scene.remove(this.crowd.group);
-    this.crowd = new Crowd(this.venue.seats, density);
+    this.crowd = new Crowd(this.venue.seats, density, this.crowdOpts);
     this.scene.add(this.crowd.group);
     this.audio.setVolumes({ master: s.master, music: s.music, crowd: s.crowd, sfx: s.sfx });
     this.resize();
@@ -198,6 +276,8 @@ export class Game {
     const w = this.renderer.domElement.parentElement?.clientWidth ?? innerWidth;
     const h = this.renderer.domElement.parentElement?.clientHeight ?? innerHeight;
     this.renderer.setSize(w, h);
+    this.composer?.setSize(w, h);
+    this.composer?.setPixelRatio(this.renderer.getPixelRatio());
     this.camera.aspect = w / h;
     // Keep the whole court in view on tall/portrait screens.
     this.camera.fov = w / h < 1 ? 58 : 40;
@@ -226,7 +306,7 @@ export class Game {
     this.director.on((c) => this.onCue(c));
     this.stats = { longestRally: 0, perfect: [0, 0], aces: [0, 0], points: 0, durationS: 0 };
     this.winner = null;
-    this.resultTimer = -1;
+    this.resultAt = -1;
     this.paused = false;
     this.input.enabled = !cfg.autoplay;
     this.machine.visible = cfg.mode === 'practice';
@@ -234,6 +314,7 @@ export class Game {
     this.cameraMode = 'broadcast';
     this.cameraModeTime = 0;
     for (const e of this.sim.drainEvents()) this.director.handle(e);
+    this.updateBoard();
     this.ui?.score(this.sim, this.names);
     this.ui?.rally(0);
   }
@@ -268,9 +349,10 @@ export class Game {
         for (const e of sim.drainEvents()) this.onSimEvent(e);
         this.director?.tick(dt);
       }
-      if (this.resultTimer > 0) {
-        this.resultTimer -= dt;
-        if (this.resultTimer <= 0 && this.winner !== null) this.ui?.results(this.winner, this.names, sim.rules.state.score, this.stats);
+      // Wall-clock delay so slow devices (clamped frame dt) don't wait longer than 4.5 s for the results.
+      if (this.resultAt > 0 && performance.now() >= this.resultAt) {
+        this.resultAt = -1;
+        if (this.winner !== null) this.ui?.results(this.winner, this.names, sim.rules.state.score, this.stats);
       }
     } else if (!sim) {
       // Menu: let the demo AIs idle in their stances.
@@ -280,7 +362,9 @@ export class Game {
     this.syncScene(dt, beat);
     this.updateCamera(dt);
     this.audio.setSpatial(this.venue.djAnchor, this.camera.position, this.camera.getWorldDirection(new THREE.Vector3()));
-    this.renderer.render(this.scene, this.camera);
+    // Low preset renders directly (no post) for weak GPUs and automated tests.
+    if (this.composer && this.settings.graphics !== 'low') this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
     this.onFrame?.();
   }
 
@@ -315,6 +399,7 @@ export class Game {
         break;
       }
       case 'point':
+        this.umpireCall(e);
         this.stats.points++;
         this.stats.longestRally = Math.max(this.stats.longestRally, e.rallyLength);
         if (e.ace) {
@@ -326,12 +411,14 @@ export class Game {
         this.ui?.score(sim, this.names);
         break;
       case 'point_reset':
+        this.updateBoard();
         this.ui?.score(sim, this.names);
         this.ui?.rally(0);
         break;
       case 'game_over':
+        this.updateBoard();
         this.winner = e.winner;
-        this.resultTimer = 4.5;
+        this.resultAt = performance.now() + 4500;
         this.ui?.score(sim, this.names);
         break;
       case 'practice_result':
@@ -341,6 +428,51 @@ export class Game {
       default:
         break;
     }
+  }
+
+  private updateBoard(): void {
+    const sim = this.sim;
+    if (!sim || !this.lawn) return;
+    const st = sim.rules.state;
+    const call = st.phase === 'game_over' ? `Game · ${this.names[st.winner ?? 0]}` : sim.mode === 'practice' ? 'Practice session' : `Score ${sim.rules.scoreCall()}`;
+    this.lawn.setScoreboard(this.names, [st.score[0], st.score[1]], sim.mode === 'match' ? st.server : -1, call);
+  }
+
+  /** Chair umpire: line calls and the score, in a crisp, restrained voice (temporary TTS). */
+  private umpireCall(e: Extract<SimEvent, { type: 'point' }>): void {
+    if (!this.settings.voice || !('speechSynthesis' in window) || !this.lawn) return;
+    const calls: Partial<Record<FaultReason, string>> = { out: 'Out.', serve_out: 'Out.', serve_in_kitchen: 'Short.', serve_wrong_court: 'Fault.', kitchen_volley: 'Kitchen.', two_bounce_rule: 'Fault.', net: '', serve_into_net: 'Net.', double_hit: 'Fault.' };
+    const call = calls[e.reason];
+    const sim = this.sim!;
+    const score = sim.rules.state.phase === 'game_over' ? 'Game.' : `${sim.rules.scoreCall().replace('-', ', ')}.`;
+    this.speak(`${call ? call + ' ' : ''}${score}`, 'umpire');
+  }
+
+  private voices: { umpire?: SpeechSynthesisVoice; commentary?: SpeechSynthesisVoice } | null = null;
+
+  /** Prefer refined British voices for the umpire and commentary booth when the browser offers them. */
+  private pickVoices(): void {
+    const all = window.speechSynthesis?.getVoices() ?? [];
+    if (!all.length) return;
+    const gb = all.filter((v) => /en[-_]GB/i.test(v.lang));
+    const en = all.filter((v) => /^en/i.test(v.lang));
+    const pick = (re: RegExp, pool: SpeechSynthesisVoice[]) => pool.find((v) => re.test(v.name));
+    this.voices = {
+      commentary: pick(/Daniel|Arthur|George|UK English Male|Ryan|Oliver/i, gb) ?? gb[0] ?? en[0],
+      umpire: pick(/Serena|Kate|Martha|Libby|Sonia|UK English Female/i, gb) ?? gb[1] ?? gb[0] ?? en[0],
+    };
+  }
+
+  private speak(text: string, who: 'umpire' | 'commentary', interrupt = false): void {
+    if (!this.voices) this.pickVoices();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = this.voices?.[who];
+    if (v) u.voice = v;
+    u.rate = who === 'umpire' ? 0.92 : 1.0;
+    u.pitch = who === 'umpire' ? 1.05 : 0.95;
+    u.volume = Math.min(1, this.settings.master * 1.1);
+    if (interrupt) speechSynthesis.cancel();
+    speechSynthesis.speak(u);
   }
 
   private onCue(c: AtmosphereCue): void {
@@ -356,12 +488,7 @@ export class Game {
         if (this.settings.subtitles) this.ui?.subtitle(c.line.text);
         if (this.settings.voice && 'speechSynthesis' in window) {
           // Temporary voice: the browser's built-in TTS. Replaced by recorded VO in Unreal.
-          const u = new SpeechSynthesisUtterance(c.line.text);
-          u.rate = 1.05;
-          u.pitch = 1;
-          u.volume = Math.min(1, this.settings.master * 1.1);
-          if (c.line.priority >= 7) speechSynthesis.cancel();
-          speechSynthesis.speak(u);
+          this.speak(c.line.text, 'commentary', c.line.priority >= 9);
         }
         break;
       case 'camera':
@@ -463,6 +590,25 @@ export class Game {
     (this.venue.stringLights.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.3 + pulse * 0.4;
 
     this.crowd.update(dt, beat, reduced);
+
+    // Officials: seated umpire/line judges follow the ball with their heads; ball kids crouch, ready.
+    const t = performance.now() / 1000;
+    const ballPos = sim ? sim.ball.p : { x: 0, y: 1, z: 0 };
+    for (const { o, rig } of this.officials) {
+      if (o.kind === 'ballkid') poseCrouch(rig, t + o.pos.x);
+      else {
+        poseSeated(rig, o.seatHeight);
+        rig.armR.rotation.x = rig.armL.rotation.x = 0.9;
+      }
+      // Head yaw toward the ball (relative to body facing).
+      const dx = ballPos.x - o.pos.x;
+      const dz = ballPos.z - o.pos.z;
+      const world = Math.atan2(-dx, -dz);
+      let rel = world - o.yaw;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      rig.head.rotation.y += (Math.max(-1.2, Math.min(1.2, rel)) - rig.head.rotation.y) * Math.min(1, dt * 6);
+    }
+    this.lawn?.tick(new Date());
 
     // Confetti.
     if (this.confettiTime > 0) {

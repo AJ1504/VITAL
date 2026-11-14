@@ -1,22 +1,25 @@
 :root {
-  --terracotta: #c4633d;
-  --emerald: #1f5e4a;
-  --emerald-deep: #12382c;
-  --cream: #f4ead5;
-  --coral: #f07a5f;
-  --cobalt: #2b4fa8;
-  --lavender: #b59fd8;
-  --gold: #f2b544;
-  --ink: #241c18;
-  --glass: rgba(24, 40, 34, 0.72);
-  --glass-strong: rgba(18, 32, 27, 0.9);
+  /* Members' Lawn palette: bottle green, ivory, antique gold, claret (variable names kept for reuse). */
+  --terracotta: #6b1f2e;
+  --emerald: #123d2f;
+  --emerald-deep: #0b2a20;
+  --cream: #f5efe1;
+  --coral: #c9a45c;
+  --cobalt: #1c2a44;
+  --lavender: #8e86c9;
+  --gold: #c9a45c;
+  --gold-soft: rgba(201, 164, 92, 0.55);
+  --claret: #6b1f2e;
+  --ink: #14130f;
+  --glass: rgba(11, 42, 32, 0.82);
+  --glass-strong: rgba(9, 32, 25, 0.92);
   --text-scale: 1;
-  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --serif: 'Cormorant Garamond', 'Cormorant', Georgia, 'Times New Roman', serif;
+  --sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #f49a6c; color: var(--cream); font-family: var(--sans); font-size: calc(16px * var(--text-scale)); -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b2a20; color: var(--cream); font-family: var(--sans); font-size: calc(16px * var(--text-scale)); -webkit-tap-highlight-color: transparent; }
 #stage { position: fixed; inset: 0; }
 #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 button { font: inherit; color: inherit; cursor: pointer; }
@@ -158,3 +161,66 @@ button.card:hover:not(:disabled), button.card:focus-visible { background: rgba(2
 @media (prefers-reduced-motion: reduce) {
   #toast { transition: opacity 0.2s; }
 }
+
+
+/* =====================================================================
+   Members' Lawn — regal country-club identity (overrides)
+   ===================================================================== */
+.crest { width: 74px; height: 88px; display: block; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.35)); }
+.brand { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
+.brand-kicker { font-family: var(--sans); font-weight: 600; font-size: 0.68em; letter-spacing: 0.34em; color: var(--gold); }
+.brand h1 { font-family: var(--serif); font-style: normal; font-weight: 600; font-size: clamp(44px, 7vw, 72px); letter-spacing: 0.06em; line-height: 1; text-transform: uppercase; color: var(--cream); text-shadow: none; margin: 6px 0 0; }
+.brand-venue { font-family: var(--serif); font-style: italic; font-size: 1.25em; color: rgba(245, 239, 225, 0.86); margin-top: 6px; }
+.rule { height: 1px; background: linear-gradient(90deg, var(--gold) 0%, var(--gold-soft) 60%, transparent 100%); border: 0; margin: 2px 0; }
+#menu {
+  background: linear-gradient(90deg, rgba(9, 32, 25, 0.96) 0%, rgba(9, 32, 25, 0.9) 72%, rgba(9, 32, 25, 0) 100%);
+  border-right: 0;
+}
+#menu::after { content: ''; position: absolute; top: 28px; bottom: 28px; right: 18%; width: 1px; background: linear-gradient(180deg, transparent, var(--gold-soft), transparent); pointer-events: none; }
+.tabs button { font-family: var(--sans); font-weight: 600; font-size: 0.7em; letter-spacing: 0.22em; border-radius: 0; padding: 8px 10px; }
+.tabs button.active { box-shadow: inset 0 -1px 0 var(--gold); background: none; color: var(--gold); }
+.tabs button:hover, .tabs button:focus-visible { background: rgba(201, 164, 92, 0.08); }
+.lede { font-family: var(--serif); font-size: 1.35em; line-height: 1.45; color: rgba(245, 239, 225, 0.92); }
+.cta { border-radius: 2px; padding: 15px 30px; font-family: var(--sans); font-weight: 700; font-size: 0.82em; letter-spacing: 0.22em; text-transform: uppercase; background: linear-gradient(180deg, #d9b878, #b8914a); color: #14130f; box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 10px 24px rgba(0,0,0,0.3); }
+.cta:hover, .cta:focus-visible { outline: 1px solid var(--gold); outline-offset: 3px; transform: none; filter: brightness(1.06); }
+.cta:active { transform: translateY(1px); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.cta.ghost { background: transparent; color: var(--cream); box-shadow: inset 0 0 0 1px var(--gold-soft); }
+.card { border-radius: 2px; border: 1px solid rgba(201, 164, 92, 0.3); background: rgba(245, 239, 225, 0.04); }
+.card b { font-family: var(--serif); font-style: normal; font-weight: 600; font-size: 1.3em; letter-spacing: 0.02em; }
+.card.active { border-color: var(--gold); background: rgba(201, 164, 92, 0.08); }
+button.card:hover:not(:disabled), button.card:focus-visible { background: rgba(201, 164, 92, 0.14); border-color: var(--gold); }
+.settings fieldset { border-radius: 2px; border-color: rgba(201, 164, 92, 0.28); }
+.settings legend { letter-spacing: 0.28em; }
+.field input[type='range'], .check input { accent-color: var(--gold); }
+
+/* Broadcast score bug */
+#scoreboard { border-radius: 2px; border: 1px solid var(--gold-soft); background: linear-gradient(180deg, rgba(14, 50, 38, 0.94), rgba(9, 32, 25, 0.94)); min-width: 250px; }
+#scoreboard::before { content: 'RALLY CLUB · THE MEMBERS’ LAWN'; display: block; padding: 6px 12px 5px; font: 600 9px/1 var(--sans); letter-spacing: 0.3em; color: var(--gold); border-bottom: 1px solid rgba(201, 164, 92, 0.3); }
+.sb-name { font-family: var(--serif); font-weight: 600; font-size: 1.12em; letter-spacing: 0.08em; text-transform: uppercase; }
+.sb-row[data-side='0'] .sb-name::before { background: var(--claret); border-radius: 50%; }
+.sb-row[data-side='1'] .sb-name::before { background: #3c5a8a; border-radius: 50%; }
+.sb-score { font-family: var(--serif); font-style: normal; font-weight: 700; font-size: 1.9em; color: var(--cream); }
+.sb-row.serving .sb-serve { background: #e8f53c; box-shadow: 0 0 8px rgba(232, 245, 60, 0.8); }
+.sb-meta { background: rgba(201, 164, 92, 0.12); color: var(--gold); font-weight: 600; letter-spacing: 0.22em; border-top: 1px solid rgba(201, 164, 92, 0.3); }
+#energy { background: rgba(9, 32, 25, 0.6); border: 1px solid rgba(201, 164, 92, 0.25); }
+#energy-fill { background: linear-gradient(90deg, #8e7440, var(--gold)); }
+#toast { font-family: var(--serif); font-style: normal; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; font-size: clamp(30px, 5.5vw, 60px); color: var(--cream); text-shadow: 0 2px 18px rgba(0,0,0,0.45); }
+#toast::before, #toast::after { content: ''; display: inline-block; vertical-align: middle; width: 48px; height: 1px; background: var(--gold); margin: 0 18px; }
+#toast.good, #toast.bad { color: var(--cream); }
+#subtitle { border-radius: 2px; border: 1px solid rgba(201, 164, 92, 0.35); background: rgba(9, 32, 25, 0.88); }
+.sub-who { letter-spacing: 0.3em; font-weight: 600; }
+#subtitle-text { font-family: var(--serif); font-size: 1.18em; font-style: italic; }
+kbd { background: rgba(245, 239, 225, 0.92); color: #0b2a20; border-radius: 2px; }
+.icon-btn { background: rgba(9, 32, 25, 0.82); border-color: var(--gold-soft); color: var(--gold); }
+#harness-badge { border-radius: 2px; background: rgba(9, 32, 25, 0.8); border-color: var(--gold-soft); letter-spacing: 0.16em; }
+.modal { background: radial-gradient(ellipse at center, rgba(9, 32, 25, 0.82), rgba(9, 32, 25, 0.95)); }
+.modal h2 { font-family: var(--serif); font-style: normal; font-weight: 600; letter-spacing: 0.06em; }
+.res-score { font-family: var(--serif); font-style: normal; color: var(--gold); letter-spacing: 0.1em; }
+.res-stats div { border-radius: 2px; border: 1px solid rgba(201, 164, 92, 0.25); background: rgba(245, 239, 225, 0.04); }
+#practice-panel { border-radius: 2px; border: 1px solid var(--gold-soft); }
+#practice-panel .pp-title { font-style: normal; font-weight: 600; letter-spacing: 0.1em; color: var(--gold); }
+#touch-controls button { background: rgba(9, 32, 25, 0.72); border-color: var(--gold-soft); color: var(--cream); }
+#touch-controls .primary { background: linear-gradient(180deg, #d9b878, #b8914a); color: #14130f; }
+body.high-contrast .sb-meta { background: #fff; color: #000; }
+.brand h1 { font-size: clamp(38px, 5.2vw, 58px); letter-spacing: 0.04em; white-space: nowrap; }
+.sb-score, .res-score, #pp-streak, #pp-best { font-variant-numeric: lining-nums tabular-nums; font-feature-settings: 'lnum' 1, 'tnum' 1; }

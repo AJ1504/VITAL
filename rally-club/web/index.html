@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Rally Club — Browser Harness</title>
+    <title>Rally Club — The Members’ Lawn</title>
     <meta name="description" content="Rally Club P1 vertical slice — temporary browser gameplay harness for the Unreal Engine 5 build." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,600;1,9..144,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
@@ -51,10 +51,38 @@
     <!-- ===================== MENUS ===================== -->
     <div id="menu" class="screen">
       <div class="brand">
-        <div class="brand-kicker">The members’ racket club</div>
-        <h1>Rally&nbsp;Club</h1>
-        <div class="brand-venue">Sunset Rooftop Club · Pickleball</div>
+        <!-- Original club crest: laurel-framed shield, crossed paddles, ball, founding year. -->
+        <svg class="crest" viewBox="0 0 120 142" role="img" aria-label="Rally Club crest">
+          <defs>
+            <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3c788"/><stop offset="1" stop-color="#a98440"/></linearGradient>
+          </defs>
+          <path d="M60 14 L104 26 V66 C104 96 84 116 60 128 C36 116 16 96 16 66 V26 Z" fill="#0b2a20" stroke="url(#cg)" stroke-width="3.5"/>
+          <path d="M60 22 L96 32 V66 C96 91 80 108 60 119 C40 108 24 91 24 66 V32 Z" fill="none" stroke="url(#cg)" stroke-width="1" opacity="0.7"/>
+          <g fill="url(#cg)">
+            <g transform="rotate(-38 60 72)"><rect x="57" y="78" width="6" height="26" rx="2"/><ellipse cx="60" cy="62" rx="14" ry="18"/></g>
+            <g transform="rotate(38 60 72)"><rect x="57" y="78" width="6" height="26" rx="2"/><ellipse cx="60" cy="62" rx="14" ry="18"/></g>
+          </g>
+          <g transform="rotate(-38 60 72)"><ellipse cx="60" cy="62" rx="10" ry="13.5" fill="#123d2f"/></g>
+          <g transform="rotate(38 60 72)"><ellipse cx="60" cy="62" rx="10" ry="13.5" fill="#123d2f"/></g>
+          <circle cx="60" cy="40" r="7" fill="#f5efe1" stroke="url(#cg)" stroke-width="1.5"/>
+          <text x="60" y="104" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="url(#cg)">RC</text>
+          <g fill="none" stroke="url(#cg)" stroke-width="2" stroke-linecap="round">
+            <path d="M14 34 C2 60 6 100 34 124"/><path d="M106 34 C118 60 114 100 86 124"/>
+          </g>
+          <g fill="url(#cg)">
+            <ellipse cx="9" cy="52" rx="3" ry="7" transform="rotate(-20 9 52)"/><ellipse cx="7" cy="72" rx="3" ry="7" transform="rotate(-8 7 72)"/><ellipse cx="11" cy="92" rx="3" ry="7" transform="rotate(12 11 92)"/><ellipse cx="21" cy="110" rx="3" ry="7" transform="rotate(35 21 110)"/>
+            <ellipse cx="111" cy="52" rx="3" ry="7" transform="rotate(20 111 52)"/><ellipse cx="113" cy="72" rx="3" ry="7" transform="rotate(8 113 72)"/><ellipse cx="109" cy="92" rx="3" ry="7" transform="rotate(-12 109 92)"/><ellipse cx="99" cy="110" rx="3" ry="7" transform="rotate(-35 99 110)"/>
+          </g>
+          <path d="M32 128 H88 L84 138 H36 Z" fill="#6b1f2e" stroke="url(#cg)" stroke-width="1"/>
+          <text x="60" y="136" text-anchor="middle" font-family="Manrope, sans-serif" font-size="6.5" font-weight="700" letter-spacing="2" fill="#e3c788">MMXXVI</text>
+        </svg>
+        <div>
+          <div class="brand-kicker">EST. MMXXVI · PRIVATE MEMBERS</div>
+          <h1>Rally&nbsp;Club</h1>
+          <div class="brand-venue">The Members’ Lawn · Championship Pickleball</div>
+        </div>
       </div>
+      <hr class="rule" />
       <nav class="tabs" role="tablist">
         <button data-tab="home" class="active">Home</button>
         <button data-tab="play">Play</button>
@@ -66,10 +94,10 @@
       </nav>
 
       <section class="panel" data-panel="home">
-        <p class="lede">Golden hour on the terrace. The DJ is warming up, the stands are filling, and your paddle is waiting.</p>
+        <p class="lede">The lawn is freshly striped, the Members’ Box is full, and the bandstand DJ has begun the afternoon set. Your court awaits.</p>
         <div class="cta-row">
-          <button class="cta" id="btn-quick">Quick Match</button>
-          <button class="cta ghost" id="btn-practice">Practice</button>
+          <button class="cta" id="btn-quick">Take the Court</button>
+          <button class="cta ghost" id="btn-practice">Practice Court</button>
         </div>
         <p class="fine">Click anywhere to start the music. Phone motion controllers arrive in P2 — for now play with keyboard, gamepad or touch.</p>
       </section>
@@ -102,7 +130,8 @@
 
       <section class="panel" data-panel="courts" hidden>
         <div class="cards">
-          <div class="card active"><b>Sunset Rooftop Club</b><span>Emerald & terracotta · DJ balcony</span></div>
+          <button class="card" data-venue="lawn"><b>The Members’ Lawn</b><span>Championship grass · Members’ Box · bandstand DJ</span></button>
+          <button class="card" data-venue="rooftop"><b>Sunset Rooftop Club</b><span>Emerald & terracotta · DJ balcony</span></button>
           <div class="card locked"><b>Azure Coast Country Club</b><span>P4</span></div>
           <div class="card locked"><b>Neon Social Club</b><span>P6</span></div>
           <div class="card locked"><b>Grand Championship</b><span>P6</span></div>

@@ -3,7 +3,11 @@
 A Wii Sports–inspired social racket-sports game set in luxury country clubs: motion-controlled phones,
 golden-hour rooftop courts, a live DJ, a reactive crowd and charismatic commentary. Original IP.
 
-This directory is the **P1 vertical slice**: Sunset Rooftop Club pickleball.
+This directory is the **P1 vertical slice**: championship pickleball at **The Members’ Lawn** (default
+venue: striped grass court, a bowl of stands, Members’ Box, umpire and ball crew, bandstand DJ) and the
+original **Sunset Rooftop Club** (Settings → Courts). On Medium/High graphics the harness loads real
+CC0 assets from Poly Haven — HDRI sky, PBR textures, garden models (`web/public/assets`, ~40 MB;
+re-download with `python3 scripts/fetch-assets.py`) — plus ambient occlusion, bloom and SMAA.
 
 > **What runs today, and what doesn't.** This environment has **no Unreal Engine and no GPU**, so per
 > brief §7 the playable slice is a **clearly labelled temporary browser harness** (`/web`, Three.js).
@@ -12,7 +16,7 @@ This directory is the **P1 vertical slice**: Sunset Rooftop Club pickleball.
 > camera) has **not been compiled** — that needs a machine with Unreal installed. See
 > [docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md) for the exact implemented / tested / blocked / planned table.
 
-![Rally in progress](docs/screenshots/03-rally.png)
+![The Members’ Lawn](docs/screenshots/10-members-lawn.png)
 
 ## Quick start
 
