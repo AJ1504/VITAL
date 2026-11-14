@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Rally Club — Browser Harness</title>
+    <meta name="description" content="Rally Club P1 vertical slice — temporary browser gameplay harness for the Unreal Engine 5 build." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,600;1,9..144,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="stage"></div>
+
+    <div id="harness-badge" title="This browser build is a temporary gameplay harness. The production client is the Unreal Engine 5 project in /unreal.">
+      Temporary browser harness · not the Unreal build
+    </div>
+
+    <!-- ===================== HUD ===================== -->
+    <div id="hud" hidden>
+      <div id="scoreboard" aria-live="polite">
+        <div class="sb-row" data-side="0"><span class="sb-serve"></span><span class="sb-name"></span><span class="sb-score">0</span></div>
+        <div class="sb-row" data-side="1"><span class="sb-serve"></span><span class="sb-name"></span><span class="sb-score">0</span></div>
+        <div class="sb-meta"><span id="sb-call">0-0</span><span id="sb-rally"></span></div>
+      </div>
+      <div id="practice-panel" hidden>
+        <div class="pp-title">Practice</div>
+        <div><b id="pp-streak">0</b> streak · best <b id="pp-best">0</b></div>
+        <div class="pp-sub"><span id="pp-good">0</span> good of <span id="pp-feeds">0</span></div>
+      </div>
+      <div id="energy"><div id="energy-fill"></div><span>Crowd</span></div>
+      <div id="toast" aria-live="assertive"></div>
+      <div id="subtitle" aria-live="polite"><span class="sub-who">Commentary</span><span id="subtitle-text"></span></div>
+      <div id="controls-hint">
+        <span><kbd>J</kbd>/<kbd>Space</kbd> drive</span><span><kbd>K</kbd> dink</span><span><kbd>L</kbd> lob</span><span><kbd>←</kbd><kbd>→</kbd> aim / move</span><span><kbd>Esc</kbd> pause</span>
+      </div>
+      <button id="pause-btn" class="icon-btn" aria-label="Pause">❚❚</button>
+      <div id="touch-controls">
+        <div class="tc-aim">
+          <button data-aim="-1" aria-label="Aim left">◀</button>
+          <button data-aim="1" aria-label="Aim right">▶</button>
+        </div>
+        <div class="tc-shots">
+          <button data-shot="lob">Lob</button>
+          <button data-shot="dink">Dink</button>
+          <button data-shot="drive" class="primary">Swing</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== MENUS ===================== -->
+    <div id="menu" class="screen">
+      <div class="brand">
+        <div class="brand-kicker">The members’ racket club</div>
+        <h1>Rally&nbsp;Club</h1>
+        <div class="brand-venue">Sunset Rooftop Club · Pickleball</div>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button data-tab="home" class="active">Home</button>
+        <button data-tab="play">Play</button>
+        <button data-tab="sports">Sports</button>
+        <button data-tab="player">My Player</button>
+        <button data-tab="friends">Friends</button>
+        <button data-tab="courts">Courts</button>
+        <button data-tab="settings">Settings</button>
+      </nav>
+
+      <section class="panel" data-panel="home">
+        <p class="lede">Golden hour on the terrace. The DJ is warming up, the stands are filling, and your paddle is waiting.</p>
+        <div class="cta-row">
+          <button class="cta" id="btn-quick">Quick Match</button>
+          <button class="cta ghost" id="btn-practice">Practice</button>
+        </div>
+        <p class="fine">Click anywhere to start the music. Phone motion controllers arrive in P2 — for now play with keyboard, gamepad or touch.</p>
+      </section>
+
+      <section class="panel" data-panel="play" hidden>
+        <div class="cards">
+          <button class="card" id="card-match"><b>Match vs Club AI</b><span>Singles · first to <span class="pts">11</span>, win by 2</span></button>
+          <button class="card" id="card-practice"><b>Practice</b><span>Ball machine feeds · build a streak</span></button>
+          <button class="card locked" disabled><b>Local Social Match</b><span>Two phones · P3</span></button>
+          <button class="card locked" disabled><b>Online</b><span>Rooms & matchmaking · P5</span></button>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="sports" hidden>
+        <div class="cards">
+          <div class="card active"><b>Pickleball</b><span>Available</span></div>
+          <div class="card locked"><b>Tennis</b><span>Planned · P4</span></div>
+          <div class="card locked"><b>Padel</b><span>Planned · P4 (wall rebounds)</span></div>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="player" hidden>
+        <label class="field">Player name <input id="set-name" maxlength="14" autocomplete="off" /></label>
+        <p class="fine">Avatar creator, outfits, rackets, emotes and saved progression are planned for P5/P6.</p>
+      </section>
+
+      <section class="panel" data-panel="friends" hidden>
+        <p class="fine">Friends, private rooms, spectators and video/voice calling are planned for P5.</p>
+      </section>
+
+      <section class="panel" data-panel="courts" hidden>
+        <div class="cards">
+          <div class="card active"><b>Sunset Rooftop Club</b><span>Emerald & terracotta · DJ balcony</span></div>
+          <div class="card locked"><b>Azure Coast Country Club</b><span>P4</span></div>
+          <div class="card locked"><b>Neon Social Club</b><span>P6</span></div>
+          <div class="card locked"><b>Grand Championship</b><span>P6</span></div>
+        </div>
+      </section>
+
+      <section class="panel settings" data-panel="settings" hidden>
+        <fieldset>
+          <legend>Gameplay</legend>
+          <label class="field">Assist
+            <select id="set-assist">
+              <option value="casual">Casual — auto-move, generous timing</option>
+              <option value="classic">Classic — Wii-like auto-move</option>
+              <option value="precision">Precision — manual movement, tight timing</option>
+            </select>
+          </label>
+          <label class="field">Opponent
+            <select id="set-difficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
+          </label>
+          <label class="field">Game to
+            <select id="set-points"><option value="7">7</option><option value="11">11</option><option value="15">15</option><option value="21">21</option></select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Audio</legend>
+          <label class="field">Master <input type="range" id="set-master" min="0" max="1" step="0.05" /></label>
+          <label class="field">Music (DJ) <input type="range" id="set-music" min="0" max="1" step="0.05" /></label>
+          <label class="field">Crowd <input type="range" id="set-crowd" min="0" max="1" step="0.05" /></label>
+          <label class="field">Effects <input type="range" id="set-sfx" min="0" max="1" step="0.05" /></label>
+          <label class="check"><input type="checkbox" id="set-voice" /> Commentary voice (temporary browser TTS)</label>
+        </fieldset>
+        <fieldset>
+          <legend>Graphics</legend>
+          <label class="field">Preset
+            <select id="set-graphics"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+          </label>
+          <label class="check"><input type="checkbox" id="set-shake" /> Camera shake</label>
+        </fieldset>
+        <fieldset>
+          <legend>Accessibility</legend>
+          <label class="check"><input type="checkbox" id="set-subtitles" /> Subtitles</label>
+          <label class="check"><input type="checkbox" id="set-reduced" /> Reduced motion</label>
+          <label class="check"><input type="checkbox" id="set-contrast" /> High-contrast HUD</label>
+          <label class="check"><input type="checkbox" id="set-haptics" /> Vibration (where supported)</label>
+          <label class="field">Text size
+            <select id="set-text"><option value="1">100%</option><option value="1.15">115%</option><option value="1.3">130%</option></select>
+          </label>
+        </fieldset>
+      </section>
+    </div>
+
+    <div id="pause" class="screen modal" hidden>
+      <h2>Paused</h2>
+      <div class="cta-col">
+        <button class="cta" id="btn-resume">Resume</button>
+        <button class="cta ghost" id="btn-restart">Restart</button>
+        <button class="cta ghost" id="btn-quit">Back to Club</button>
+      </div>
+    </div>
+
+    <div id="results" class="screen modal" hidden>
+      <div class="brand-kicker">Match complete</div>
+      <h2 id="res-title">You win!</h2>
+      <div id="res-score" class="res-score">11 – 7</div>
+      <dl class="res-stats">
+        <div><dt>Longest rally</dt><dd id="res-rally">0</dd></div>
+        <div><dt>Perfect hits</dt><dd id="res-perfect">0</dd></div>
+        <div><dt>Aces</dt><dd id="res-aces">0</dd></div>
+        <div><dt>Duration</dt><dd id="res-time">0:00</dd></div>
+      </dl>
+      <div class="cta-row">
+        <button class="cta" id="btn-rematch">Rematch</button>
+        <button class="cta ghost" id="btn-menu">Back to Club</button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

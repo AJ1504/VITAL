@@ -1,0 +1,31 @@
+{
+  "name": "rally-club",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Rally Club \u2014 P1 vertical slice: shared racket-sports core, Unreal C++ source, and a temporary browser gameplay harness.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "preview": "vite preview --config web/vite.config.ts --port 4173",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test tests/unit/*.test.ts",
+    "test:core-cpp": "bash scripts/test-unreal-core.sh",
+    "test:e2e": "node tests/e2e/smoke.mjs",
+    "soak": "node scripts/soak.ts",
+    "check": "npm run typecheck && npm test && npm run test:core-cpp && npm run test:parity",
+    "test:parity": "bash scripts/parity-check.sh"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/three": "0.170.0",
+    "typescript": "5.8.3",
+    "vite": "6.3.5"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}

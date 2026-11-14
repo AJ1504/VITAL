@@ -1,0 +1,21 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.6",
+	"Category": "Games",
+	"Description": "Rally Club - social racket sports. P1 vertical slice: Sunset Rooftop Club pickleball.",
+	"Modules": [
+		{
+			"Name": "RallyClub",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": ["Engine", "AudioMixer"]
+		}
+	],
+	"Plugins": [
+		{ "Name": "EnhancedInput", "Enabled": true },
+		{ "Name": "Metasound", "Enabled": true },
+		{ "Name": "PixelStreaming2", "Enabled": false, "Comment": "Enable in P5 for browser delivery; see docs/ARCHITECTURE.md" },
+		{ "Name": "ModelingToolsEditorMode", "Enabled": true, "TargetAllowList": ["Editor"] }
+	],
+	"TargetPlatforms": ["Windows", "Linux", "Mac"]
+}

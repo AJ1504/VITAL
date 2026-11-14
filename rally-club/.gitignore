@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+# Unreal
+unreal/Binaries/
+unreal/Intermediate/
+unreal/Saved/
+unreal/DerivedDataCache/
+unreal/.vs/
+unreal/*.sln
