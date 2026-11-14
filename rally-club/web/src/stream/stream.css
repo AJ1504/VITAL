@@ -1,0 +1,15 @@
+/* Pixel Streaming page — builds on the Members' Lawn identity in ../styles.css */
+.stream-page { background: #050d0a; }
+#video { position: fixed; inset: 0; background: #050d0a; }
+#video video { width: 100%; height: 100%; object-fit: contain; }
+.stream-page #hud { pointer-events: none; }
+.stream-lede { font-family: var(--serif); font-size: 1.3em; max-width: 30em; margin: 0; color: rgba(245, 239, 225, 0.9); }
+.stream-form { display: flex; flex-direction: column; gap: 14px; width: min(520px, 100%); }
+.stream-form .field { grid-template-columns: 1fr 2.2fr; }
+.stream-form input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.stream-form a.cta { text-decoration: none; display: inline-flex; align-items: center; }
+.stream-status { font-size: 0.82em; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); min-height: 1.4em; }
+.stream-status.error { color: #f0a4a4; }
+#net-stats { position: absolute; right: 14px; top: 64px; font: 600 10px/1.5 var(--sans); letter-spacing: 0.12em; color: rgba(245, 239, 225, 0.75); text-align: right; text-shadow: 0 1px 2px #000; }
+#click-to-play { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40; }
+code { font-size: 0.9em; color: var(--gold); }

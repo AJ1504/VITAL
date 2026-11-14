@@ -224,3 +224,4 @@ kbd { background: rgba(245, 239, 225, 0.92); color: #0b2a20; border-radius: 2px;
 body.high-contrast .sb-meta { background: #fff; color: #000; }
 .brand h1 { font-size: clamp(38px, 5.2vw, 58px); letter-spacing: 0.04em; white-space: nowrap; }
 .sb-score, .res-score, #pp-streak, #pp-best { font-variant-numeric: lining-nums tabular-nums; font-feature-settings: 'lnum' 1, 'tnum' 1; }
+a.card { text-decoration: none; color: inherit; }

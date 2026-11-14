@@ -14,7 +14,7 @@
 	"Plugins": [
 		{ "Name": "EnhancedInput", "Enabled": true },
 		{ "Name": "Metasound", "Enabled": true },
-		{ "Name": "PixelStreaming2", "Enabled": false, "Comment": "Enable in P5 for browser delivery; see docs/ARCHITECTURE.md" },
+		{ "Name": "PixelStreaming2", "Enabled": true },
 		{ "Name": "ModelingToolsEditorMode", "Enabled": true, "TargetAllowList": ["Editor"] }
 	],
 	"TargetPlatforms": ["Windows", "Linux", "Mac"]

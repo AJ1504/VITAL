@@ -12,7 +12,10 @@ public class RallyClub : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
-			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AudioMixer", "AudioExtensions", "MetasoundEngine"
+			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AudioMixer", "AudioExtensions", "MetasoundEngine",
+			"Json", "JsonUtilities",
+			// Pixel Streaming 2 (browser delivery): UPixelStreaming2Input lives in the PixelStreaming2Input module.
+			"PixelStreaming2Input"
 		});
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 

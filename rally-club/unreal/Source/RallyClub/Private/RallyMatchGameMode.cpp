@@ -6,6 +6,7 @@
 #include "RallyBall.h"
 #include "RallyClub.h"
 #include "RallyPlayerPawn.h"
+#include "RallyStreamBridge.h"
 
 using namespace RallyCore;
 
@@ -21,6 +22,8 @@ void ARallyMatchGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 	Director = GetWorld()->GetSubsystem<UAtmosphereDirectorSubsystem>();
+	// Pixel Streaming bridge: lets the website drive this match and receive score/commentary.
+	if (!StreamBridge) StreamBridge = GetWorld()->SpawnActor<ARallyStreamBridge>();
 	StartMatch();
 }
 

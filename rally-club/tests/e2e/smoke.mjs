@@ -181,6 +181,28 @@ await test('6. phone-sized viewport shows touch fallback controls', async () => 
   await ctx.close();
 });
 
+await test('7. Unreal Pixel Streaming page loads, validates the host and attempts a connection', async () => {
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&gfx=low`);
+  await page.click('.tabs button:has-text("Play")');
+  const href = await page.getAttribute('#card-unreal', 'href');
+  assert(href === './stream.html', `Play tab links to the stream page (${href})`);
+  await page.goto(`${BASE}stream.html`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!window.__rallyStream, null, { timeout: 30000 });
+  assert(await page.isVisible('#connect'), 'connect screen visible');
+  await page.fill('#ss', 'http://not-a-websocket');
+  await page.click('#btn-connect');
+  assert(/must start with ws/i.test((await page.textContent('#status')) ?? ''), 'rejects non-websocket hosts');
+  await page.fill('#ss', 'ws://127.0.0.1:9');
+  await page.click('#btn-connect');
+  await page.waitForTimeout(1500);
+  const st = (await page.textContent('#status')) ?? '';
+  assert(/Connecting to ws:\/\/127\.0\.0\.1:9|Disconnected/i.test(st), `attempted connection (status: ${st})`);
+  await page.screenshot({ timeout: 240000, path: `${shots}12-unreal-connect.png` });
+  const real = errors.filter((e) => !/WebSocket|ERR_CONNECTION_REFUSED|signalling|websocket/i.test(e));
+  assert(real.length === 0, `page errors: ${real.join(' | ')}`);
+  await ctx.close();
+});
+
 await browser.close();
 stopServer();
 const failed = results.filter((r) => !r.ok);

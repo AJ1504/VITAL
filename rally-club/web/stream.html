@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Rally Club — Unreal Stream</title>
+    <meta name="description" content="Play Rally Club rendered by Unreal Engine 5, streamed to your browser with Pixel Streaming 2." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/styles.css" />
+    <link rel="stylesheet" href="./src/stream/stream.css" />
+  </head>
+  <body class="stream-page">
+    <div id="video"></div>
+
+    <!-- HUD rendered by the website from Unreal's state messages -->
+    <div id="hud" hidden>
+      <div id="scoreboard" aria-live="polite">
+        <div class="sb-row" data-side="0"><span class="sb-serve"></span><span class="sb-name">You</span><span class="sb-score">0</span></div>
+        <div class="sb-row" data-side="1"><span class="sb-serve"></span><span class="sb-name">Rival</span><span class="sb-score">0</span></div>
+        <div class="sb-meta"><span id="sb-call">—</span><span id="sb-rally"></span></div>
+      </div>
+      <div id="subtitle" aria-live="polite"><span class="sub-who">Commentary</span><span id="subtitle-text"></span></div>
+      <div id="net-stats" title="Connection diagnostics"></div>
+      <div id="controls-hint">
+        <span><kbd>J</kbd>/<kbd>Space</kbd> drive</span><span><kbd>K</kbd> dink</span><span><kbd>L</kbd> lob</span><span><kbd>←</kbd><kbd>→</kbd> aim / move</span>
+      </div>
+      <div id="touch-controls">
+        <div class="tc-aim"><button data-aim="-1" aria-label="Aim left">◀</button><button data-aim="1" aria-label="Aim right">▶</button></div>
+        <div class="tc-shots"><button data-shot="lob">Lob</button><button data-shot="dink">Dink</button><button data-shot="drive" class="primary">Swing</button></div>
+      </div>
+    </div>
+
+    <!-- Connect screen -->
+    <div id="connect" class="screen modal">
+      <div class="brand-kicker">RALLY CLUB · UNREAL ENGINE 5</div>
+      <h2>The Members’ Lawn</h2>
+      <p class="stream-lede">Rendered live by Unreal Engine on the club’s GPU host and streamed to your browser.</p>
+      <form id="connect-form" class="stream-form">
+        <label class="field">Stream host
+          <input id="ss" name="ss" autocomplete="off" spellcheck="false" placeholder="ws://localhost:80" />
+        </label>
+        <div class="cta-row">
+          <button class="cta" type="submit" id="btn-connect">Connect</button>
+          <a class="cta ghost" href="./index.html">Browser edition</a>
+        </div>
+      </form>
+      <div id="status" class="stream-status" role="status">Not connected</div>
+      <p class="fine">The stream host is the Pixel Streaming signalling server in front of the Unreal build (see docs/PIXEL_STREAMING.md). Add <code>?ss=wss://your-host</code> to this page’s URL to skip this step.</p>
+    </div>
+
+    <button id="click-to-play" class="cta" hidden>Tap to start the stream</button>
+
+    <script type="module" src="./src/stream/main.ts"></script>
+  </body>
+</html>

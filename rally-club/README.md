@@ -18,6 +18,12 @@ re-download with `python3 scripts/fetch-assets.py`) — plus ambient occlusion, 
 
 ![The Members’ Lawn](docs/screenshots/10-members-lawn.png)
 
+## Play the Unreal build in the browser (Pixel Streaming 2)
+
+`web/stream.html` (Play → **Play on Unreal Engine**) embeds Epic's Pixel Streaming player and bridges Rally
+Club's controls, scoreboard and commentary to the Unreal build running on a GPU host. Setup, scripts and
+honest test status: **[docs/PIXEL_STREAMING.md](docs/PIXEL_STREAMING.md)**.
+
 ## Quick start
 
 ```bash

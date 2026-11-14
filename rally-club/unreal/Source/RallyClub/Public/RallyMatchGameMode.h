@@ -11,6 +11,7 @@
 class ARallyBall;
 class ARallyPlayerPawn;
 class UAtmosphereDirectorSubsystem;
+class ARallyStreamBridge;
 
 UCLASS()
 class RALLYCLUB_API ARallyMatchGameMode : public AGameModeBase
@@ -53,5 +54,6 @@ private:
 	UPROPERTY() TObjectPtr<ARallyBall> Ball;
 	UPROPERTY() TObjectPtr<ARallyPlayerPawn> Players[2];
 	UPROPERTY() TObjectPtr<UAtmosphereDirectorSubsystem> Director;
+	UPROPERTY() TObjectPtr<ARallyStreamBridge> StreamBridge;
 	int32 RallyLength = 0;
 };

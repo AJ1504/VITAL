@@ -70,6 +70,15 @@ Unreal workstation **after** the module compiles there (see Blockers).
 people need rigged, animated human models (e.g. MetaHumans in the Unreal build, or licensed/CC0 glTF
 characters). Fetching third-party character packs from GitHub was not permitted in this session.
 
+## Pass 3 — Unreal in the browser (Pixel Streaming 2)
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| Web stream player (`stream.html`, Epic lib 0.3.2 for UE 5.6), club-styled connect screen, autoplay handling | ✅ | ✅ e2e 7: loads, validates host, library attempts connection and reports disconnect | |
+| Structured input bridge (`rally.input`, seq/ack, 10 Hz keep-alive, swing edges) + commands | ✅ | ✅ unit (protocol) | Raw device forwarding disabled on purpose |
+| Unreal `ARallyStreamBridge` (PixelStreaming2 input component → GameMode; score/commentary responses) | ✅ source | ⛔ no Unreal here | Blueprint fallback documented |
+| Signalling/web server + streamer launch scripts (Win/Linux) | ✅ | ⛔ no GPU host | Verify Wilbur flags on first run |
+
 ## Later phases
 
 | Phase | Feature | Status |

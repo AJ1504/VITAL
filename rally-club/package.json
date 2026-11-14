@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Rally Club \u2014 P1 vertical slice: shared racket-sports core, Unreal C++ source, and a temporary browser gameplay harness.",
+  "description": "Rally Club — P1 vertical slice: shared racket-sports core, Unreal C++ source, and a temporary browser gameplay harness.",
   "engines": {
     "node": ">=22.18"
   },
@@ -26,6 +26,7 @@
     "vite": "6.3.5"
   },
   "dependencies": {
+    "@epicgames-ps/lib-pixelstreamingfrontend-ue5.6": "^0.3.2",
     "three": "0.170.0"
   }
 }
