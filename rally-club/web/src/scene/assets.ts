@@ -150,7 +150,28 @@ export function loadSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene, opts:
         resolve(true);
       },
       undefined,
-      () => resolve(false),
+      // Hosts that don't serve .hdr (e.g. claude.ai artifacts) get the tone-mapped JPG of the same sky.
+      () => {
+        texLoader.load(
+          `${BASE}hdri/sky_2k.jpg`,
+          (jpg) => {
+            jpg.mapping = THREE.EquirectangularReflectionMapping;
+            jpg.colorSpace = THREE.SRGBColorSpace;
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            scene.environment = pmrem.fromEquirectangular(jpg).texture;
+            scene.environmentIntensity = opts.intensity * 1.4;
+            if (opts.rotationY) scene.environmentRotation.y = opts.rotationY;
+            if (opts.background) {
+              scene.background = jpg;
+              if (opts.rotationY) scene.backgroundRotation.y = opts.rotationY;
+            }
+            pmrem.dispose();
+            resolve(true);
+          },
+          undefined,
+          () => resolve(false),
+        );
+      },
     );
   });
 }
@@ -160,7 +181,12 @@ const modelCache = new Map<string, Promise<GLTF | null>>();
 export function loadModel(id: string): Promise<GLTF | null> {
   let p = modelCache.get(id);
   if (!p) {
-    p = gltfLoader.loadAsync(`${BASE}models/${id}/${id}.gltf`).catch(() => null);
+    // `<id>.json` is the same glTF with its buffer embedded (served everywhere, incl. artifact hosting);
+    // fall back to the original `.gltf` + `.bin`.
+    p = gltfLoader
+      .loadAsync(`${BASE}models/${id}/${id}.json`)
+      .catch(() => gltfLoader.loadAsync(`${BASE}models/${id}/${id}.gltf`))
+      .catch(() => null);
     modelCache.set(id, p);
   }
   return p;

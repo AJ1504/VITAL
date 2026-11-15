@@ -48,4 +48,15 @@ for mid, res in MODELS.items():
         get(inc['url'], os.path.join(ROOT, 'models', mid, rel))
 hid, hres = HDRI
 get(files(hid)['hdri'][hres]['hdr']['url'], os.path.join(ROOT, 'hdri', 'sky_2k.hdr'))
+# Hosting-friendly variants: glTF with embedded buffers saved as .json (some hosts don't serve .gltf/.bin).
+import base64
+for mid in MODELS:
+    d = os.path.join(ROOT, 'models', mid)
+    g = json.load(open(os.path.join(d, mid + '.gltf')))
+    for b in g.get('buffers', []):
+        uri = b.get('uri')
+        if uri and not uri.startswith('data:'):
+            b['uri'] = 'data:application/octet-stream;base64,' + base64.b64encode(open(os.path.join(d, uri), 'rb').read()).decode()
+    json.dump(g, open(os.path.join(d, mid + '.json'), 'w'))
+# A tone-mapped sky_2k.jpg (fallback for hosts that don't serve .hdr) is committed alongside the HDR.
 print('done')
