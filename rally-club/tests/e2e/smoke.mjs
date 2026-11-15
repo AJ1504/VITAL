@@ -86,7 +86,7 @@ async function waitFor(page, pred, timeoutMs, label) {
 }
 
 await test('1. menu renders with the harness label and no errors', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute&gfx=low`);
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&nointro&gfx=low`);
   await page.waitForTimeout(2500);
   assert((await state(page)).screen === 'menu', 'menu screen');
   const badge = await page.textContent('#harness-badge');
@@ -103,7 +103,7 @@ await test('1. menu renders with the harness label and no errors', async () => {
 });
 
 await test('2. P1 ACCEPT — human serves with the keyboard and completes a scored rally', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute&seed=11&assist=casual&gfx=low&speed=2`);
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&nointro&seed=11&assist=casual&gfx=low&speed=2`);
   await page.waitForTimeout(1500);
   await page.click('#btn-quick');
   await waitFor(page, (s) => s.screen === 'hud' && s.phase === 'awaiting_serve' && s.server === 0, 10000, 'serve setup');
@@ -132,7 +132,7 @@ await test('2. P1 ACCEPT — human serves with the keyboard and completes a scor
 });
 
 await test('3. pause menu opens and resumes', async () => {
-  const { page, ctx } = await openPage(`${BASE}?mute&start=match&seed=4&gfx=low`);
+  const { page, ctx } = await openPage(`${BASE}?mute&nointro&start=match&seed=4&gfx=low`);
   await waitFor(page, (s) => s.screen === 'hud', 10000, 'hud');
   await page.keyboard.press('Escape');
   await waitFor(page, (s) => s.screen === 'pause', 3000, 'pause');
@@ -143,9 +143,9 @@ await test('3. pause menu opens and resumes', async () => {
 });
 
 await test('4. practice mode feeds balls and records results', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute&start=practice&seed=5&assist=casual&gfx=low&speed=2`);
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&nointro&start=practice&seed=5&assist=casual&gfx=low&speed=5`);
   // Software rendering runs the sim slower than real time, so allow generous wall-clock time.
-  const end = Date.now() + 120000;
+  const end = Date.now() + 300000;
   let s = await state(page);
   while (s.practice?.feeds < 3 && Date.now() < end) {
     await page.keyboard.press('j');
@@ -159,7 +159,7 @@ await test('4. practice mode feeds balls and records results', async () => {
 });
 
 await test('5. autoplay (AI vs AI) finishes a full game to 3 and shows results + celebration', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute&autoplay&seed=2&points=3&gfx=low&speed=8`);
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&nointro&autoplay&seed=2&points=3&gfx=low&speed=8`);
   await waitFor(page, (s) => s.phase === 'game_over', 900000, 'game over');
   await page.waitForTimeout(4000); // let the celebration camera settle (software rendering is ~5 fps)
   await page.screenshot({ timeout: 240000, path: `${shots}07-celebration.png` });
@@ -171,7 +171,7 @@ await test('5. autoplay (AI vs AI) finishes a full game to 3 and shows results +
 });
 
 await test('6. phone-sized viewport shows touch fallback controls', async () => {
-  const { page, ctx } = await openPage(`${BASE}?mute&start=match&seed=6&gfx=low`, { ...devices['iPhone 13'] });
+  const { page, ctx } = await openPage(`${BASE}?mute&nointro&start=match&seed=6&gfx=low`, { ...devices['iPhone 13'] });
   await waitFor(page, (s) => s.screen === 'hud', 10000, 'hud');
   await page.waitForTimeout(1000);
   assert(await page.isVisible('#touch-controls button[data-shot="drive"]'), 'touch swing button visible');
@@ -182,7 +182,7 @@ await test('6. phone-sized viewport shows touch fallback controls', async () => 
 });
 
 await test('7. Unreal Pixel Streaming page loads, validates the host and attempts a connection', async () => {
-  const { page, errors, ctx } = await openPage(`${BASE}?mute&gfx=low`);
+  const { page, errors, ctx } = await openPage(`${BASE}?mute&nointro&gfx=low`);
   await page.click('.tabs button:has-text("Play")');
   const href = await page.getAttribute('#card-unreal', 'href');
   assert(href === './stream.html', `Play tab links to the stream page (${href})`);

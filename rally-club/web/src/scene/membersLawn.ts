@@ -144,10 +144,10 @@ export function buildMembersLawn(scene: THREE.Scene, court: Court): Venue & { ex
 
   const hemi = new THREE.HemisphereLight(0xdfeeff, 0x5b6b3c, 1.0);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff1dc, 4.2);
+  const sun = new THREE.DirectionalLight(0xfff4e2, 4.0);
   // Late-afternoon sun from the west at ~33°: the west stand throws a long shadow across part of the lawn,
   // the classic championship-court look.
-  sun.position.set(-30, 21, -9);
+  sun.position.set(-20, 30, -8); // bright early-afternoon sun: crisp but shorter shadows
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 90 });
@@ -243,7 +243,7 @@ export function buildMembersLawn(scene: THREE.Scene, court: Court): Venue & { ex
   const WX = LW / 2;
   const WZ = LL / 2;
   const WH = 1.15;
-  const wallSide = mat(0xffffff, { map: backstopTexture('RALLY CLUB  ·  THE MEMBERS’ LAWN  ·  EST. MMXXVI', ROYAL.bottle, ROYAL.gold, 2), roughness: 0.7 });
+  const wallSide = mat(0xffffff, { map: backstopTexture('RALLY CLUB  ·  THE MEMBERS’ LAWN', ROYAL.bottle, ROYAL.gold, 2), roughness: 0.7 });
   const wallEnd = mat(0xffffff, { map: backstopTexture('RALLY CLUB  ·  THE MEMBERS’ LAWN', ROYAL.bottle, ROYAL.gold, 1), roughness: 0.7 });
   const addWall = (w: number, x: number, z: number, ry: number, m: THREE.Material) => {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, WH, 0.25), m);

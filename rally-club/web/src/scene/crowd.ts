@@ -31,6 +31,8 @@ export class Crowd {
   private hair: THREE.InstancedMesh;
   private arms: THREE.InstancedMesh;
   private hats: THREE.InstancedMesh;
+  private eyes: THREE.InstancedMesh;
+  private off = new THREE.Vector3();
   private people: Spectator[] = [];
   state: CrowdState = 'idle';
   intensity = 0.2;
@@ -57,12 +59,14 @@ export class Crowd {
     const std = new THREE.MeshStandardMaterial({ roughness: 0.8 });
     // Realistic adult proportions: tapered torso, small head (scaled geometry, shared by all instances).
     this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.17, 0.38, 4, 10).scale(1.15, 1, 0.72), std, n);
-    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.105, 14, 10).scale(0.92, 1.12, 1), std.clone(), n);
-    this.hair = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), std.clone(), n);
+    // Friendly, big-headed spectators (same family as the player characters) with simple dot eyes.
+    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.155, 16, 12), std.clone(), n);
+    this.hair = new THREE.InstancedMesh(new THREE.SphereGeometry(0.163, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5).rotateX(0.35), std.clone(), n);
+    this.eyes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.024, 8, 6).scale(0.8, 1.25, 0.5), new THREE.MeshStandardMaterial({ color: 0x2a1f1c, roughness: 0.4 }), n * 2);
     this.arms = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.05, 0.4, 3, 6), std.clone(), n * 2);
     // Straw boater: crown + brim (lathe profile).
     const hatProfile = [new THREE.Vector2(0, 0.09), new THREE.Vector2(0.15, 0.09), new THREE.Vector2(0.155, 0.0), new THREE.Vector2(0.27, 0.0), new THREE.Vector2(0.27, -0.015), new THREE.Vector2(0, -0.015)];
-    this.hats = new THREE.InstancedMesh(new THREE.LatheGeometry(hatProfile, 18).scale(0.62, 0.7, 0.62), new THREE.MeshStandardMaterial({ roughness: 0.9 }), n);
+    this.hats = new THREE.InstancedMesh(new THREE.LatheGeometry(hatProfile, 18).scale(0.85, 0.8, 0.85), new THREE.MeshStandardMaterial({ roughness: 0.9 }), n);
     const c = new THREE.Color();
     for (let i = 0; i < n; i++) {
       const pool = memberFlags[i] ? memberOutfits : outfits;
@@ -74,8 +78,8 @@ export class Crowd {
       this.arms.setColorAt(i * 2, c.setHex(outfit));
       this.arms.setColorAt(i * 2 + 1, c.setHex(outfit));
     }
-    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats]) {
-      im.castShadow = true;
+    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes]) {
+      im.castShadow = im !== this.eyes;
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.group.add(im);
     }
@@ -153,11 +157,18 @@ export class Crowd {
       // Head sits above the body along the body's local up.
       const hx = p.base.x - Math.sin(p.yaw) * Math.sin(lean) * 0.45;
       const hz = p.base.z - Math.cos(p.yaw) * Math.sin(lean) * 0.45;
-      this.m.compose(this.v.set(hx, baseY + y + 0.47, hz), this.q, this.s);
+      const hy = baseY + y + 0.52;
+      this.m.compose(this.v.set(hx, hy, hz), this.q, this.s);
       this.heads.setMatrixAt(i, this.m);
-      this.m.compose(this.v.set(hx, baseY + y + 0.49, hz), this.q, this.s);
+      this.m.compose(this.v.set(hx, hy + 0.012, hz), this.q, this.s);
       this.hair.setMatrixAt(i, this.m);
-      if (p.hat) this.m.compose(this.v.set(hx, baseY + y + 0.56, hz), this.q, this.s);
+      // Eyes on the front of the head (local -z), following the head's lean/yaw.
+      for (const es of [-1, 1]) {
+        this.off.set(es * 0.052, 0.012, -0.143).applyQuaternion(this.q);
+        this.m.compose(this.v.set(hx + this.off.x, hy + this.off.y, hz + this.off.z), this.q, this.s);
+        this.eyes.setMatrixAt(i * 2 + (es > 0 ? 1 : 0), this.m);
+      }
+      if (p.hat) this.m.compose(this.v.set(hx, hy + 0.1, hz), this.q, this.s);
       else this.m.makeScale(0, 0, 0);
       this.hats.setMatrixAt(i, this.m);
       for (const side of [-1, 1]) {
@@ -170,6 +181,6 @@ export class Crowd {
         this.arms.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), this.m);
       }
     }
-    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats]) im.instanceMatrix.needsUpdate = true;
+    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes]) im.instanceMatrix.needsUpdate = true;
   }
 }

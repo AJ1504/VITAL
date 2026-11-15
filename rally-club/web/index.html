@@ -6,7 +6,7 @@
     <title>Rally Club — The Members’ Lawn</title>
     <meta name="description" content="Rally Club P1 vertical slice — temporary browser gameplay harness for the Unreal Engine 5 build." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
@@ -47,6 +47,22 @@
         </div>
       </div>
     </div>
+
+    <!-- ===================== PRESENTATION OVERLAYS ===================== -->
+    <div id="title-card" hidden>
+      <div class="tc-kicker">Rally Club presents</div>
+      <div class="tc-title" id="tc-title">The Members’ Lawn</div>
+      <div class="tc-sub" id="tc-sub">Singles · first to 11</div>
+      <div class="tc-vs"><span id="tc-p0">You</span><i>vs</i><span id="tc-p1">Rafa</span></div>
+      <div class="tc-skip">Press any key to skip</div>
+    </div>
+    <div id="banner" aria-live="assertive"><div id="banner-text"></div><div id="banner-sub"></div></div>
+    <div id="score-card" hidden>
+      <div class="scd-row" data-side="0"><span class="scd-dot"></span><span class="scd-name"></span><span class="scd-score"></span></div>
+      <div class="scd-row" data-side="1"><span class="scd-dot"></span><span class="scd-name"></span><span class="scd-score"></span></div>
+      <div class="scd-call" id="scd-call"></div>
+    </div>
+    <div id="popups"></div>
 
     <!-- ===================== MENUS ===================== -->
     <div id="menu" class="screen">
@@ -94,11 +110,11 @@
       </nav>
 
       <section class="panel" data-panel="home">
-        <p class="lede">The lawn is freshly striped, the Members’ Box is full, and the bandstand DJ has begun the afternoon set. Your court awaits.</p>
-        <div class="cta-row">
-          <button class="cta" id="btn-quick">Take the Court</button>
-          <button class="cta ghost" id="btn-practice">Practice Court</button>
+        <div class="tiles">
+          <button class="tile tile-play" id="btn-quick"><span class="tile-icon">🎾</span><b>Play Match</b><small>Singles vs the club pro</small></button>
+          <button class="tile tile-practice" id="btn-practice"><span class="tile-icon">🎯</span><b>Practice</b><small>Ball machine &amp; streaks</small></button>
         </div>
+        <p class="lede">Sunshine, a full house and a freshly striped lawn. Grab your paddle!</p>
         <p class="fine">Click anywhere to start the music. Phone motion controllers arrive in P2 — for now play with keyboard, gamepad or touch.</p>
       </section>
 
@@ -194,6 +210,15 @@
     </div>
 
     <div id="results" class="screen modal" hidden>
+      <svg class="trophy" viewBox="0 0 120 130" aria-hidden="true">
+        <defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset="0.5" stop-color="#e2b54f"/><stop offset="1" stop-color="#a97b22"/></linearGradient></defs>
+        <path d="M30 14 H90 V44 C90 66 76 80 60 82 C44 80 30 66 30 44 Z" fill="url(#tg)"/>
+        <path d="M30 22 H14 C14 44 22 54 34 56 M90 22 H106 C106 44 98 54 86 56" fill="none" stroke="url(#tg)" stroke-width="7" stroke-linecap="round"/>
+        <rect x="53" y="82" width="14" height="18" fill="url(#tg)"/>
+        <rect x="36" y="100" width="48" height="12" rx="3" fill="url(#tg)"/>
+        <rect x="30" y="112" width="60" height="12" rx="3" fill="#123d2f"/>
+        <circle cx="60" cy="42" r="12" fill="#fff6d6" opacity="0.6"/>
+      </svg>
       <div class="brand-kicker">Match complete</div>
       <h2 id="res-title">You win!</h2>
       <div id="res-score" class="res-score">11 – 7</div>

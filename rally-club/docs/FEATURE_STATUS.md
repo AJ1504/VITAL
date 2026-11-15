@@ -79,6 +79,17 @@ characters). Fetching third-party character packs from GitHub was not permitted 
 | Unreal `ARallyStreamBridge` (PixelStreaming2 input component → GameMode; score/commentary responses) | ✅ source | ⛔ no Unreal here | Blueprint fallback documented |
 | Signalling/web server + streamer launch scripts (Win/Linux) | ✅ | ⛔ no GPU host | Verify Wilbur flags on first run |
 
+## Pass 4 — Wii-Sports-style presentation & feel (original designs)
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| "Pal" characters: chunky toy proportions, canvas faces with blink, ball-tracking eyes and 7 expressions, elbows/knees, hair & headwear styles | ✅ | ✅ video + stills | `web/src/scene/pal.ts` |
+| Animation: ready stance, split-step hop, auto backswing timed to the incoming ball, whip + follow-through FH/BH, underhand serve, run cycle, fist-pump, dejected slump, celebration jumps, wave, clap | ✅ | ✅ video | Keyframed poses blended over procedural locomotion |
+| Game feel: hit-stop, slow-mo on perfect contact, ball squash & stretch, speed-coloured ribbon trail, impact ring, camera kick, "NICE SHOT!/PERFECT!/WHIFF!/GREAT RALLY!" pop-ups | ✅ | ✅ video | Reduced-motion turns these off |
+| Presentation: intro fly-in + title card, "Ready? / Play!", winner close-up + score card each point, "Game Point" banner, celebration orbit (loser claps), trophy results | ✅ | ✅ video + e2e | Any key/tap skips the intro |
+| Follow camera behind the player; friendly rounded UI (Fredoka/Nunito, tiles, bouncy buttons, outlined pop text); cute crowd with eyes; brighter grade; jingles | ✅ | ✅ stills | |
+| QA video capture (virtual time, one frame per step) | ✅ | ✅ produced a 42 s gameplay video | `?capture` + scratch script |
+
 ## Later phases
 
 | Phase | Feature | Status |

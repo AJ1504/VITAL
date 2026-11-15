@@ -18,6 +18,9 @@ if (params.get('venue')) settings.venue = params.get('venue') as Settings['venue
 if (params.get('gfx')) settings.graphics = params.get('gfx') as Settings['graphics'];
 
 const game = new Game($('#stage'), settings);
+// QA capture: fixed timestep per rendered frame, e.g. ?fixedstep=60 for frame-perfect animation video.
+if (params.has('capture')) game.captureMode();
+if (params.get('fixedstep')) game.setFixedStep(1 / Math.max(1, Number(params.get('fixedstep'))));
 if (params.get('speed')) game.timeScale = Math.max(1, Math.min(8, Number(params.get('speed'))));
 let lastConfig: MatchConfig = { mode: 'match' };
 
@@ -70,6 +73,52 @@ const ui: GameUi = {
     $('#res-time').textContent = `${m}:${String(Math.floor(stats.durationS % 60)).padStart(2, '0')}`;
     show('results');
   },
+  banner(text, kind, sub) {
+    const b = $('#banner');
+    $('#banner-text').textContent = text;
+    $('#banner-sub').textContent = sub ?? '';
+    b.className = '';
+    void b.offsetWidth; // restart the CSS animation
+    b.className = `show ${kind}`;
+    if (kind === 'ready' || kind === 'play') game.audio.jingle('ready');
+  },
+  titleCard(card) {
+    const el = $('#title-card');
+    if (!card) {
+      el.hidden = true;
+      return;
+    }
+    $('#tc-title').textContent = card.title;
+    $('#tc-sub').textContent = card.sub;
+    $('#tc-p0').textContent = card.names[0];
+    $('#tc-p1').textContent = card.names[1];
+    el.hidden = false;
+  },
+  scoreCard(card) {
+    const el = $('#score-card');
+    if (!card) {
+      el.hidden = true;
+      return;
+    }
+    for (const side of [0, 1]) {
+      const row = $(`.scd-row[data-side="${side}"]`);
+      row.querySelector('.scd-name')!.textContent = card.names[side];
+      row.querySelector('.scd-score')!.textContent = String(card.score[side]);
+      row.classList.toggle('serving', card.server === side);
+      row.classList.toggle('won', card.winner === side);
+    }
+    $('#scd-call').textContent = `SCORE CALL  ${card.call}`;
+    el.hidden = false;
+  },
+  popup(text, x, y, tone) {
+    const p = document.createElement('div');
+    p.className = `popup ${tone}`;
+    p.textContent = text;
+    p.style.left = `${x}px`;
+    p.style.top = `${y}px`;
+    $('#popups').appendChild(p);
+    window.setTimeout(() => p.remove(), 1200);
+  },
 };
 game.ui = ui;
 game.input.bindTouch($('#touch-controls'));
@@ -86,7 +135,9 @@ function show(screen: Screen): void {
 }
 
 async function start(cfg: MatchConfig): Promise<void> {
-  lastConfig = cfg;
+  if (params.has('nointro')) cfg = { ...cfg, skipIntro: true };
+  lastConfig = { ...cfg, skipIntro: true }; // rematches go straight to "Ready?"
+  $('#score-card').hidden = true;
   await game.startMatch(cfg);
   $('#scoreboard').hidden = cfg.mode === 'practice';
   $('#practice-panel').hidden = cfg.mode !== 'practice';
@@ -98,6 +149,9 @@ function toMenu(): void {
   game.exitToMenu();
   show('menu');
 }
+
+// Any key or tap skips the intro fly-in.
+for (const ev of ['keydown', 'pointerdown'] as const) window.addEventListener(ev, () => game.skipIntro());
 
 game.input.onPause = () => {
   if (!game.sim) return;
@@ -221,12 +275,14 @@ window.__rally = {
   start,
   toMenu,
   press: (shot: 'drive' | 'dink' | 'lob') => game.input.press(shot),
+  step: () => game.step(),
   state: () => {
     const sim = game.sim;
     if (!sim) return { screen: 'menu', assetsReady: game.assetsReady };
     const st = sim.rules.state;
     return {
       screen: !$('#results').hidden ? 'results' : game.paused ? 'pause' : 'hud',
+      presentation: game.phase,
       mode: sim.mode,
       phase: st.phase,
       score: [...st.score],

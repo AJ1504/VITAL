@@ -530,6 +530,37 @@ export class AudioEngine {
     for (let i = 0; i < 4; i++) this.noiseHit(t + i * 0.02, 0.08, 0.25, 'bandpass', 900, 2, this.sfxBus);
   }
 
+  /** Short original jingles for the presentation layer (bright, bouncy, bell-like). */
+  jingle(kind: 'intro' | 'point_win' | 'point_lose' | 'victory' | 'defeat' | 'ready'): void {
+    const t = this.ctx.currentTime + 0.02;
+    const bell = (m: number, at: number, dur = 0.5, g = 0.12) => {
+      this.pluck(mtof(m), t + at, dur, g, this.sfxBus);
+      this.pluck(mtof(m + 12), t + at, dur * 0.6, g * 0.35, this.sfxBus);
+    };
+    switch (kind) {
+      case 'intro':
+        [67, 72, 76, 79, 84].forEach((m, i) => bell(m, i * 0.11, 0.6, 0.11));
+        [72, 76, 79].forEach((m) => bell(m, 0.62, 1.2, 0.08));
+        break;
+      case 'ready':
+        bell(79, 0, 0.25, 0.1);
+        break;
+      case 'point_win':
+        [72, 76, 79, 84].forEach((m, i) => bell(m, i * 0.07, 0.4, 0.09));
+        break;
+      case 'point_lose':
+        [69, 65, 62].forEach((m, i) => bell(m, i * 0.12, 0.45, 0.07));
+        break;
+      case 'victory':
+        [72, 72, 72, 76, 79, 84, 79, 84].forEach((m, i) => bell(m, [0, 0.12, 0.24, 0.36, 0.6, 0.84, 1.02, 1.2][i], 0.5, 0.11));
+        [72, 76, 79, 84].forEach((m) => bell(m, 1.5, 1.6, 0.07));
+        break;
+      case 'defeat':
+        [67, 64, 60, 59, 60].forEach((m, i) => bell(m, i * 0.22, 0.6, 0.07));
+        break;
+    }
+  }
+
   uiClick(): void {
     this.pluck(mtof(84), this.ctx.currentTime, 0.12, 0.08, this.sfxBus);
   }
