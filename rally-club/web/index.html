@@ -30,6 +30,7 @@
       <div id="coach" hidden><div class="coach-step" id="coach-text"></div></div>
       <div id="controls-hint"><span><kbd>Space</kbd> or <kbd>click</kbd> swing</span><span>early = crosscourt · late = down the line</span><span><kbd>C</kbd> camera</span><span><kbd>Esc</kbd> pause</span></div>
       <button id="pause-btn" class="icon-btn" aria-label="Pause">❚❚</button>
+      <div id="phone-chip" hidden>Phone connected</div>
       <button id="cam-btn" class="icon-btn cam-btn" aria-label="Change camera" title="Camera (C)">◎</button>
       <div id="touch-controls">
         <div class="tc-shots">
@@ -75,6 +76,7 @@
         <div class="play-row">
           <button class="cta" id="btn-quick">Play match</button>
           <button class="cta ghost" id="btn-practice">Practice</button>
+          <button class="cta ghost" id="btn-pair-menu" type="button">Play with your phone</button>
         </div>
         <p class="fine">One button does it all: <kbd>Space</kbd>, a click or a tap swings, and your timing aims the shot. <a id="card-unreal" href="./stream.html">Play the Unreal Engine stream</a></p>
       </section>
@@ -101,6 +103,13 @@
           <label class="field">Game to
             <select id="set-points"><option value="7">7</option><option value="11">11</option><option value="15">15</option></select>
           </label>
+        </fieldset>
+        <fieldset>
+          <legend>Controls</legend>
+          <button class="cta small" id="btn-pair" type="button">Pair your phone</button>
+          <label class="check"><input type="checkbox" id="set-ring" /> Timing ring under your player</label>
+          <label class="check"><input type="checkbox" id="set-latency" /> Make up for phone delay</label>
+          <p class="hint">Keyboard: <kbd>Space</kbd> swing · <kbd>K</kbd> dink · <kbd>L</kbd> lob · <kbd>A</kbd>/<kbd>D</kbd> move (Pro help) · <kbd>C</kbd> camera · <kbd>Esc</kbd> pause. Gamepad: A swing, B dink, Y lob.</p>
         </fieldset>
         <fieldset>
           <legend>Sound</legend>
@@ -141,6 +150,18 @@
       <div id="harness-badge" title="The browser edition renders the shared game core in WebGL. The Unreal Engine 5 build streams via Pixel Streaming.">Browser edition · not the Unreal build</div>
     </div>
 
+    <div id="pair" class="screen modal" hidden>
+      <div class="modal-card pair-card">
+        <div class="kicker">Phone controller</div>
+        <h2>Play with your phone</h2>
+        <canvas id="pair-qr" width="232" height="232" aria-label="QR code for the controller link"></canvas>
+        <div class="pair-code" id="pair-code">— — — —</div>
+        <p class="pair-help" id="pair-help">Scan with your phone camera, or open this game's link on your phone and add <b>#pad</b> to the end, then type the code. Tap the big pad to swing; timing aims the shot.</p>
+        <div class="pair-status" id="pair-status">Starting…</div>
+        <div class="cta-row"><button class="cta" id="btn-pair-close" type="button">Done</button></div>
+      </div>
+    </div>
+
     <div id="pause" class="screen modal" hidden>
       <div class="modal-card">
         <h2>Paused</h2>
@@ -178,6 +199,6 @@
       </div>
     </div>
 
-    <script type="module" src="./src/main.ts"></script>
+    <script type="module" src="./src/entry.ts"></script>
   </body>
 </html>

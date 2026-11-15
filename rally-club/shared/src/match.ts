@@ -18,6 +18,12 @@ export type StrokeShot = Exclude<ShotType, 'serve'>;
 
 export interface SwingRequest {
   shot: StrokeShot;
+  /**
+   * Seconds the swing actually started before it reached the sim (network delay from a phone
+   * controller). The swing timer starts this far in, so timing judgement matches what the player did.
+   * Clamped to 0–0.2 s. Absent for local input.
+   */
+  lead?: number;
   /** Lateral aim in the player's own frame: -1 = their left, +1 = their right. */
   aim: number;
   /**
@@ -297,7 +303,7 @@ export class MatchSim {
     if (input.swing && p.swingWindow <= 0) {
       p.pendingSwing = input.swing;
       p.swingWindow = WINDOW[p.assist];
-      p.swingElapsed = 0;
+      p.swingElapsed = Math.max(0, Math.min(0.2, input.swing.lead ?? 0));
       p.closestDist = Infinity;
     }
 

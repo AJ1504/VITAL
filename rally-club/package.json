@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@epicgames-ps/lib-pixelstreamingfrontend-ue5.6": "^0.3.2",
+    "qrcode-generator": "^1.4.4",
     "three": "0.170.0"
   }
 }

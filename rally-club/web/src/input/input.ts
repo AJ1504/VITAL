@@ -10,12 +10,15 @@ export type InputShot = StrokeShot | 'auto';
 export interface RawInput {
   moveX: number;
   moveZ: number;
-  swing: { shot: InputShot; aim: number } | null;
+  swing: { shot: InputShot; aim: number; lead?: number } | null;
 }
 
 export class InputManager {
   private keys = new Set<string>();
   private queued: InputShot | null = null;
+  private queuedLead = 0;
+  /** Left-right movement from a paired phone (-1..1). */
+  remoteMoveX = 0;
   private touchAim = 0;
   private padPrev: boolean[] = [];
   onPause: (() => void) | null = null;
@@ -68,6 +71,13 @@ export class InputManager {
     });
   }
 
+  /** A swing from the paired phone; `leadSec` is its network delay, credited to the swing timer. */
+  remote(shot: InputShot, leadSec: number): void {
+    if (!this.enabled) return;
+    this.queued = shot;
+    this.queuedLead = leadSec;
+  }
+
   /** Programmatic swing (used by automated tests and the on-screen buttons). */
   press(shot: InputShot): void {
     this.queued = shot;
@@ -75,7 +85,7 @@ export class InputManager {
 
   poll(): RawInput {
     const k = this.keys;
-    let x = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0) + this.touchAim;
+    let x = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0) + this.touchAim + this.remoteMoveX;
     let z = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0);
 
     const pad = navigator.getGamepads?.()[0];
@@ -95,8 +105,9 @@ export class InputManager {
         this.padPrev[i] = down;
       }
     }
-    const swing = this.queued && this.enabled ? { shot: this.queued, aim: Math.max(-1, Math.min(1, x)) } : null;
+    const swing = this.queued && this.enabled ? { shot: this.queued, aim: Math.max(-1, Math.min(1, x)), lead: this.queuedLead } : null;
     this.queued = null;
+    this.queuedLead = 0;
     if (!this.enabled) return { moveX: 0, moveZ: 0, swing: null };
     return { moveX: Math.max(-1, Math.min(1, x)), moveZ: Math.max(-1, Math.min(1, z)), swing };
   }

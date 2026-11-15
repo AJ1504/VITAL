@@ -210,6 +210,27 @@ await test('7. Unreal Pixel Streaming page loads, validates the host and attempt
   await ctx.close();
 });
 
+await test('8. phone controller view (#pad-1234) renders its swing pad and pairing opens from the menu', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  openContexts.push(ctx);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${BASE}#pad-1234`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#pad-zone', { timeout: 30000 });
+  assert(await page.isVisible('#pad-zone'), 'swing pad visible');
+  assert(await page.isVisible('#pad-dink'), 'dink button visible');
+  const game = await openPage(`${BASE}?mute&nointro&gfx=low`);
+  await game.page.waitForTimeout(2000);
+  await game.page.click('#btn-pair-menu');
+  await game.page.waitForSelector('#pair:not([hidden])', { timeout: 10000 });
+  const code = (await game.page.textContent('#pair-code'))?.replace(/\s/g, '') ?? '';
+  assert(/^\d{4}$/.test(code), `pairing code shown (${code})`);
+  assert(errors.length === 0 && game.errors.length === 0, `page errors: ${[...errors, ...game.errors].join(' | ')}`);
+  await game.ctx.close();
+  await ctx.close();
+});
+
 await browser.close();
 stopServer();
 const failed = results.filter((r) => !r.ok);

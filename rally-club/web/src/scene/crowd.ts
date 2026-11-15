@@ -15,6 +15,8 @@ interface Spectator {
   phase: number;
   /** Seconds left of an individual flourish (e.g. phone photo / wave). */
   flourish: number;
+  /** Smoothed head turn (radians) as they follow the ball. */
+  look: number;
   hat: boolean;
 }
 
@@ -139,7 +141,7 @@ export class Crowd {
     for (const seat of seats) {
       if (rnd() > density) continue;
       memberFlags.push(!!seat.members);
-      this.people.push({ base: seat.pos.clone(), yaw: seat.yaw + (rnd() - 0.5) * 0.3, standing: seat.standing, excitability: 0.6 + rnd() * 0.8, phase: rnd() * 10, flourish: 0, hat: rnd() < (seat.members ? hatChance * 1.6 : hatChance) });
+      this.people.push({ base: seat.pos.clone(), yaw: seat.yaw + (rnd() - 0.5) * 0.3, standing: seat.standing, excitability: 0.6 + rnd() * 0.8, phase: rnd() * 10, flourish: 0, look: 0, hat: rnd() < (seat.members ? hatChance * 1.6 : hatChance) });
       this.hasDrink.push(rnd() < 0.35);
     }
     const n = this.people.length;
@@ -197,7 +199,10 @@ export class Crowd {
   }
 
   /** @param beat 0..1 phase within the current musical beat */
-  update(dt: number, beat: number, reducedMotion = false): void {
+  private qh = new THREE.Quaternion();
+
+  /** @param ball the ball position (heads follow it), or null between points */
+  update(dt: number, beat: number, reducedMotion = false, ball: { x: number; y: number; z: number } | null = null): void {
     this.stateAge += dt;
     // Decay transient states back to a resting murmur.
     const transientLen: Partial<Record<CrowdState, number>> = { cheer: 2.6, gasp: 0.9, applause: 3, ovation: 8 };
@@ -267,17 +272,28 @@ export class Crowd {
       const hx = p.base.x - Math.sin(p.yaw) * Math.sin(lean) * 0.45;
       const hz = p.base.z - Math.cos(p.yaw) * Math.sin(lean) * 0.45;
       const hy = baseY + y + 0.52;
-      this.m.compose(this.v.set(hx, hy, hz), this.q, this.s);
+      // Heads follow the ball (each at their own pace); between points they drift back to the court.
+      let want = Math.sin(p.phase * 0.31) * 0.25;
+      if (ball) {
+        let d = Math.atan2(-(ball.x - hx), -(ball.z - hz)) - p.yaw;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        want = Math.max(-1.1, Math.min(1.1, d));
+      }
+      p.look += (want - p.look) * Math.min(1, dt * (3 + p.excitability * 3));
+      this.e.set(lean * 0.6 + (ball ? -0.08 : 0), p.yaw + p.look * motion, sway);
+      this.qh.setFromEuler(this.e);
+      this.m.compose(this.v.set(hx, hy, hz), this.qh, this.s);
       this.heads.setMatrixAt(i, this.m);
-      this.m.compose(this.v.set(hx, hy + 0.012, hz), this.q, this.s);
+      this.m.compose(this.v.set(hx, hy + 0.012, hz), this.qh, this.s);
       this.hair.setMatrixAt(i, this.m);
-      // Eyes on the front of the head (local -z), following the head's lean/yaw.
+      // Eyes on the front of the head (local -z), following the head's turn.
       for (const es of [-1, 1]) {
-        this.off.set(es * 0.052, 0.012, -0.143).applyQuaternion(this.q);
-        this.m.compose(this.v.set(hx + this.off.x, hy + this.off.y, hz + this.off.z), this.q, this.s);
+        this.off.set(es * 0.052, 0.012, -0.143).applyQuaternion(this.qh);
+        this.m.compose(this.v.set(hx + this.off.x, hy + this.off.y, hz + this.off.z), this.qh, this.s);
         this.eyes.setMatrixAt(i * 2 + (es > 0 ? 1 : 0), this.m);
       }
-      if (p.hat) this.m.compose(this.v.set(hx, hy + 0.1, hz), this.q, this.s);
+      this.e.set(lean, p.yaw, sway);
+      if (p.hat) this.m.compose(this.v.set(hx, hy + 0.1, hz), this.qh, this.s);
       else this.m.makeScale(0, 0, 0);
       this.hats.setMatrixAt(i, this.m);
       if (this.hasDrink[i] && armUp < 0.6) {

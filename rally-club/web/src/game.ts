@@ -16,7 +16,9 @@ import { type ControlInput, type GameMode, MatchSim, NO_INPUT, SIM_DT, SWING_IDE
 import type { FaultReason } from '../../shared/src/rules/pickleball.ts';
 import { AudioEngine } from './audio/audio.ts';
 import { InputManager } from './input/input.ts';
+import type { PhoneLink } from './phone/link.ts';
 import { Crowd } from './scene/crowd.ts';
+import { createGradePass } from './scene/grade.ts';
 import { SwingTrail } from './scene/fx.ts';
 import { MEMBERS, memberById } from './scene/members.ts';
 import { Pal, type PalLook } from './scene/pal.ts';
@@ -91,6 +93,8 @@ export class Game {
   readonly camera: THREE.PerspectiveCamera;
   readonly audio: AudioEngine;
   readonly input = new InputManager();
+  /** Paired phone controller (null until pairing starts). */
+  phone: PhoneLink | null = null;
   venue: Venue;
   crowd: Crowd;
   sim: MatchSim | null = null;
@@ -265,9 +269,10 @@ export class Game {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.4, 0.92);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.22, 0.45, 0.84);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    this.composer.addPass(createGradePass());
 
     this.applySettings(settings);
     window.addEventListener('resize', () => this.resize());
@@ -364,7 +369,14 @@ export class Game {
     this.venue.sun.shadow.mapSize.setScalar(s.graphics === 'low' ? 1024 : 2048);
     this.venue.sun.shadow.map?.dispose();
     (this.venue.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
-    this.renderer.shadowMap.type = s.graphics === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    // Soft-edged shadows: PCF with a wide filter radius (PCFSoft ignores radius).
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.venue.sun.shadow.radius = s.graphics === 'low' ? 1.5 : 3.5;
+    this.venue.sun.shadow.blurSamples = 12;
+    // Bloom only lifts the glowing details (LED strips, signage, disco ball), stronger at night.
+    const night = this.resort.time === 'night';
+    this.bloom.strength = (s.graphics === 'high' ? 0.34 : 0.24) * (night ? 1.6 : 1);
+    this.bloom.threshold = night ? 0.7 : 0.84;
     const fill = { grandstand: 0.42, bleachers: 0.5, 'cushion-steps': 0.5, terraces: 0.55 }[this.resort.config.bowl.seating];
     const density = (s.graphics === 'low' ? 0.55 : s.graphics === 'medium' ? 0.85 : 1) * fill * (s.crowdDensity ?? 1);
     this.scene.remove(this.crowd.group);
@@ -513,7 +525,7 @@ export class Game {
 
     if (sim && !this.paused) {
       const raw = this.input.poll();
-      const human: ControlInput = { moveX: raw.moveX, moveZ: raw.moveZ, swing: raw.swing ? this.autoShot(raw.swing.shot, raw.swing.aim) : null };
+      const human: ControlInput = { moveX: raw.moveX, moveZ: raw.moveZ, swing: raw.swing ? { ...this.autoShot(raw.swing.shot, raw.swing.aim), lead: raw.swing.lead || undefined } : null };
       if (human.swing) this.pendingHuman = human;
       if (this.phase === 'intro') {
         this.introT += real;
@@ -553,7 +565,8 @@ export class Game {
     this.syncScene(dt, real, beat);
     this.updateCamera(real);
     this.audio.setSpatial(this.venue.djAnchor, this.camera.position, this.camera.getWorldDirection(this.v1));
-    if (this.settings.graphics === 'high') this.composer.render(real);
+    // Medium and High get bloom + the colour grade; Low renders directly for speed.
+    if (this.settings.graphics !== 'low') this.composer.render(real);
     else this.renderer.render(this.scene, this.camera);
     this.onFrame?.();
   }
@@ -598,6 +611,7 @@ export class Game {
           else if (e.stroke !== 'serve' && this.coachStep === 'swing') this.advanceCoach();
           else if (e.stroke !== 'serve' && this.coachStep === 'aim' && this.hits >= 3) this.advanceCoach();
         }
+        if (e.side === 0) this.phone?.feedback({ q: e.perfect ? 'perfect' : e.quality > 0.6 ? 'good' : 'ok' });
         if (e.perfect) {
           this.stats.perfect[e.side]++;
           pal.setExpression('determined', 0.8);
@@ -610,6 +624,7 @@ export class Game {
         if (e.side === 0) {
           this.pals[0].setExpression('surprised', 1);
           this.popupAt(this.v1.copy(this.pals[0].root.position).setY(1.8), 'TOO EARLY!', 'miss');
+          this.phone?.feedback({ q: 'miss', text: 'Too early' });
         }
         break;
       case 'ball_bounce':
@@ -867,6 +882,7 @@ export class Game {
       this.trail.visible = false;
       this.updateCourtLabels();
     }
+    if (this.settings.timingRing === false) cueOpacity = 0;
     (this.cue.material as THREE.MeshBasicMaterial).opacity += (cueOpacity * 0.85 - (this.cue.material as THREE.MeshBasicMaterial).opacity) * Math.min(1, real * 12);
 
     if (this.ringT > 0) {
@@ -903,7 +919,7 @@ export class Game {
     this.bartender.elL.rotation.x = 1.2;
     this.updateWaiter(real);
 
-    this.crowd.update(real, beat, reduced);
+    this.crowd.update(real, beat, reduced, sim && this.ball.visible ? sim.ball.p : null);
 
     if (this.confettiTime > 0) {
       this.confettiTime -= real;

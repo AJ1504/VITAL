@@ -20,7 +20,7 @@ export interface LightPreset {
 
 export const LIGHTING: Record<TimeOfDay, LightPreset> = {
   day: {
-    stops: [[0, '#3d97e6'], [0.3, '#7cc0f0'], [0.47, '#d7eefa'], [0.5, '#eef8fb'], [1, '#eef8fb']],
+    stops: [[0, '#2a86e2'], [0.28, '#62b4f2'], [0.44, '#bfe4fb'], [0.5, '#eaf7fc'], [1, '#eaf7fc']],
     sun: 0xfff3e0,
     sunI: 2.8,
     sunPos: [-14, 28, 12],
@@ -34,7 +34,7 @@ export const LIGHTING: Record<TimeOfDay, LightPreset> = {
     dusk: false,
   },
   golden: {
-    stops: [[0, '#5fa2dc'], [0.3, '#a9cde6'], [0.42, '#f8d9bd'], [0.5, '#ffd3a1'], [1, '#ffd3a1']],
+    stops: [[0, '#4f8fd8'], [0.26, '#9cc4ea'], [0.4, '#fbcfb4'], [0.47, '#ffc48f'], [0.5, '#ffd9a8'], [1, '#ffd9a8']],
     sun: 0xffe0bf,
     sunI: 2.8,
     sunPos: [20, 13, -7],

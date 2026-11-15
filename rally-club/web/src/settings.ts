@@ -17,6 +17,10 @@ export interface Settings {
   crowdDensity: number;
   /** Crowd animation updates per second (15 / 30 / 60). */
   crowdRate: number;
+  /** Show the gold timing ring under your player. */
+  timingRing: boolean;
+  /** Credit a paired phone's network delay to its swings. */
+  latencyComp: boolean;
   memberId: string;
   assist: AssistLevel;
   difficulty: Difficulty;
@@ -43,6 +47,8 @@ export const DEFAULT_SETTINGS: Settings = {
   camera: 'broadcast',
   crowdDensity: 1,
   crowdRate: 30,
+  timingRing: true,
+  latencyComp: true,
   memberId: 'theo',
   assist: 'casual',
   difficulty: 'medium',

@@ -245,3 +245,13 @@ body.high-contrast #scoreboard, body.high-contrast #subtitle { background: #fff;
 #energy { right: 128px; }
 @media (max-width: 1180px) { .panel-courts .courts { grid-template-columns: repeat(3, minmax(0, 1fr)); } .court-card p { display: none; } }
 @media (max-width: 560px) { .panel-courts .courts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Phone pairing */
+.pair-card { max-width: 380px; text-align: center; }
+#pair-qr { width: 232px; height: 232px; border-radius: 16px; background: #fff; padding: 8px; }
+.pair-code { font-family: var(--fun); font-weight: 700; font-size: 40px; letter-spacing: 0.3em; padding-left: 0.3em; color: var(--accent-deep); font-variant-numeric: tabular-nums; }
+.pair-help { margin: 0; font-size: 0.86em; color: var(--soft); font-weight: 600; }
+.pair-status { font-weight: 800; font-size: 0.9em; }
+.pair-status.on { color: var(--accent-deep); }
+.hint { margin: 0; font-size: 0.78em; color: var(--soft); font-weight: 600; line-height: 1.6; }
+#phone-chip { position: absolute; top: max(66px, calc(env(safe-area-inset-top) + 66px)); right: max(14px, env(safe-area-inset-right)); background: var(--card); color: var(--accent-deep); font-weight: 800; font-size: 0.78em; padding: 6px 12px; border-radius: 99px; box-shadow: 0 6px 16px rgba(60, 70, 50, 0.16); }

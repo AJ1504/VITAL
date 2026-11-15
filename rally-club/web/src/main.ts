@@ -8,6 +8,8 @@ import { MEMBERS } from './scene/members.ts';
 import type { ArenaId } from './arenas/config.ts';
 import { ARENAS, ARENA_IDS } from './arenas/presets.ts';
 import { drawArenaPreview } from './arenas/preview.ts';
+import qrcode from 'qrcode-generator';
+import { PhoneLink } from './phone/link.ts';
 import type { InputShot } from './input/input.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -268,6 +270,65 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'c' && !e.repeat && game.sim && !$('#hud').hidden) cycleCam();
 });
 $('#cam-btn').addEventListener('click', cycleCam);
+
+// ---------------------------------------------------------------- phone controller
+let phone: PhoneLink | null = null;
+function drawQr(text: string): void {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const cv = $<HTMLCanvasElement>('#pair-qr');
+  const g = cv.getContext('2d')!;
+  const n = qr.getModuleCount();
+  const cell = Math.floor(cv.width / (n + 2));
+  const off = Math.floor((cv.width - cell * n) / 2);
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = '#213a2b';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect(off + c * cell, off + r * cell, cell, cell);
+}
+function setPairStatus(): void {
+  const st = $('#pair-status');
+  if (!phone) return;
+  if (!phone.available) {
+    st.textContent = 'Phone pairing works when the game is open on claude.ai while signed in.';
+    st.className = 'pair-status';
+  } else if (phone.connected) {
+    st.textContent = `Phone connected${phone.latencyMs ? ` · ${Math.round(phone.latencyMs)} ms delay, made up for` : ''}`;
+    st.className = 'pair-status on';
+  } else {
+    st.textContent = 'Waiting for your phone…';
+    st.className = 'pair-status';
+  }
+  $('#phone-chip').hidden = !phone.connected;
+}
+async function openPair(): Promise<void> {
+  game.audio.uiClick();
+  $('#pair').hidden = false;
+  if (!phone) {
+    phone = new PhoneLink();
+    game.phone = phone;
+    phone.onSwing = (sw) => {
+      const lead = game.settings.latencyComp === false ? 0 : sw.lat / 1000;
+      game.input.remote(sw.shot === 'drive' ? 'auto' : sw.shot, lead);
+    };
+    phone.onStatus = () => {
+      setPairStatus();
+      if (phone?.connected) ui.toast('Phone connected');
+    };
+    window.setInterval(() => {
+      if (phone) game.input.remoteMoveX = phone.connected ? phone.moveX : 0;
+    }, 50);
+    $('#pair-code').textContent = phone.code.split('').join(' ');
+    drawQr(phone.padUrl);
+  }
+  $('#pair-status').textContent = 'Starting…';
+  await phone.start();
+  setPairStatus();
+}
+$('#btn-pair').addEventListener('click', () => void openPair());
+$('#btn-pair-menu').addEventListener('click', () => void openPair());
+$('#btn-pair-close').addEventListener('click', () => ($('#pair').hidden = true));
 $('#btn-quick').addEventListener('click', () => start({ mode: 'match' }));
 $('#btn-practice').addEventListener('click', () => start({ mode: 'practice' }));
 $('#btn-coach-reset').addEventListener('click', (e) => {
@@ -375,6 +436,8 @@ function bindSettings(): void {
   check('#set-reduced', 'reducedMotion');
   check('#set-contrast', 'highContrast');
   check('#set-haptics', 'haptics');
+  check('#set-ring', 'timingRing');
+  check('#set-latency', 'latencyComp');
   const name = $<HTMLInputElement>('#set-name');
   name.value = s.playerName;
   name.addEventListener('change', () => {

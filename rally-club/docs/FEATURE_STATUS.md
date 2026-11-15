@@ -194,3 +194,15 @@ Implements the "Court Arena Concepts" brief. Design and structure: `docs/ARENAS.
 | Arena selection cards with top-down plans drawn from each config; UI palette applied from config | ✅ | ✅ menu still | |
 | Crowd size and crowd animation-rate settings | ✅ | ✅ typecheck | |
 | Crowd LOD, KTX2 textures, phone profiling | ❌ | — | Listed in ARENAS.md |
+
+## Pass 9 — vibrancy, phone controller, control settings (15 Nov 2026)
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| Colour grade (vibrance, gentle contrast, warm highlights, vignette) and bloom on glowing details, on Medium and High | ✅ | ✅ stills | `web/src/scene/grade.ts`; Low renders directly |
+| Softer shadows (PCF with a wide filter radius); richer day and golden skies; more clouds | ✅ | ✅ stills | |
+| Livelier crowd: every spectator's head follows the ball at their own pace | ✅ | ✅ stills | |
+| **Phone controller**: open the game link with `#pad-<code>` (QR code on the pairing screen). Tap to swing, Dink and Lob buttons, slide to move, hit feedback with vibration (Android), wake lock | ✅ | ✅ e2e test 8 (pad renders, pairing code shown) | Uses the claude.ai real-time room; works signed in on claude.ai. Phone motion is not available inside the claude.ai frame, so swings are taps |
+| Latency compensation: the phone measures round-trip time; each swing carries its delay, credited to the swing timer (`SwingRequest.lead`, clamped 0–0.2 s) | ✅ | ✅ unit + parity unchanged | C++ core does not read `lead` yet (only phone input sets it) |
+| Controls settings: pair phone, timing ring on/off, phone delay compensation, key and gamepad reference | ✅ | ✅ typecheck + e2e | |
+| Character pipeline guide (Gemini → Tripo/Meshy → Mixamo → GitHub) | ✅ docs | — | `docs/CHARACTER_PIPELINE.md` |

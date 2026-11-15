@@ -235,9 +235,9 @@ export function buildIsland(parent: THREE.Object3D, look: IslandLook, fogColor: 
   for (let i = 0; i < cp.count; i++) if (cp.getY(i) < 0.2) cp.setY(i, 0.2); // flat bottoms
   cloudGeo.computeVertexNormals();
   const cloudMat = new THREE.MeshStandardMaterial({ color: look.night ? 0x5a5f92 : look.dusk ? 0xffe2e6 : 0xffffff, emissive: look.night ? 0x1c1f40 : look.dusk ? 0x6a4f7a : 0x9fb6d0, emissiveIntensity: 0.45, roughness: 1, fog: false });
-  const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, 18);
-  for (let i = 0; i < 18; i++) {
-    const a = (i / 18) * Math.PI * 2 + rnd() * 0.3;
+  const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, 28);
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2 + rnd() * 0.3;
     const r = 170 + rnd() * 160;
     const s = 6 + rnd() * 7;
     clouds.setMatrixAt(i, M4(Math.cos(a) * r, 48 + rnd() * 40, Math.sin(a) * r, rnd() * 6, [s * (1 + rnd() * 0.6), s * 0.75, s]));
