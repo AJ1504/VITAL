@@ -1,6 +1,6 @@
 // Player settings (brief §8). Persisted per browser as a convenience; everything works without storage.
 import type { AssistLevel } from '../../shared/src/match.ts';
-import type { CourtId } from './scene/themes.ts';
+import type { ArenaId, TimeOfDay } from './arenas/config.ts';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type GraphicsPreset = 'low' | 'medium' | 'high';
@@ -10,7 +10,13 @@ export type VenueId = 'lawn' | 'rooftop';
 export interface Settings {
   playerName: string;
   venue: VenueId;
-  arena: CourtId;
+  arena: ArenaId;
+  timeOfDay: 'auto' | TimeOfDay;
+  camera: 'broadcast' | 'birdseye' | 'spectator';
+  /** 0–1 multiplier on spectator count. */
+  crowdDensity: number;
+  /** Crowd animation updates per second (15 / 30 / 60). */
+  crowdRate: number;
   memberId: string;
   assist: AssistLevel;
   difficulty: Difficulty;
@@ -32,7 +38,11 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   playerName: 'You',
   venue: 'lawn',
-  arena: 'coral',
+  arena: 'lavender',
+  timeOfDay: 'auto',
+  camera: 'broadcast',
+  crowdDensity: 1,
+  crowdRate: 30,
   memberId: 'theo',
   assist: 'casual',
   difficulty: 'medium',
@@ -51,7 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   haptics: true,
 };
 
-const KEY = 'rally-club.settings.v3'; // v3: Vital arenas
+const KEY = 'rally-club.settings.v4'; // v4: six-arena system
 
 export function loadSettings(): Settings {
   const s = { ...DEFAULT_SETTINGS };

@@ -5,7 +5,9 @@ import type { MatchSim } from '../../shared/src/match.ts';
 import { Game, type GameUi, type MatchConfig, type MatchStats } from './game.ts';
 import { type Settings, loadSettings, saveSettings } from './settings.ts';
 import { MEMBERS } from './scene/members.ts';
-import { ARENA_IDS, COURTS, type CourtId } from './scene/themes.ts';
+import type { ArenaId } from './arenas/config.ts';
+import { ARENAS, ARENA_IDS } from './arenas/presets.ts';
+import { drawArenaPreview } from './arenas/preview.ts';
 import type { InputShot } from './input/input.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -18,6 +20,8 @@ if (params.get('assist')) settings.assist = params.get('assist') as Settings['as
 if (params.has('mute')) settings.voice = false;
 // QA / automation params: graphics preset override and simulation speed multiplier.
 if (params.get('arena')) settings.arena = params.get('arena') as Settings['arena'];
+if (params.get('time')) settings.timeOfDay = params.get('time') as Settings['timeOfDay'];
+if (params.get('cam')) settings.camera = params.get('cam') as Settings['camera'];
 if (params.get('gfx')) settings.graphics = params.get('gfx') as Settings['graphics'];
 
 const game = new Game($('#stage'), settings);
@@ -139,31 +143,8 @@ const ui: GameUi = {
     $('#coach-text').innerHTML = `${a}<small>${b}</small>`;
     el.hidden = false;
   },
-  courtLabels(list) {
-    const root = $('#court-labels');
-    if (!list.length || $('#menu').hidden) {
-      root.replaceChildren();
-      return;
-    }
-    if (root.childElementCount !== list.length) {
-      root.replaceChildren(
-        ...list.map((c) => {
-          const t = COURTS[c.id as CourtId];
-          const d = document.createElement('div');
-          d.className = 'court-label';
-          const dot = document.createElement('i');
-          dot.style.background = `#${t.court.toString(16).padStart(6, '0')}`;
-          d.append(dot, `${t.name}${t.playable ? '' : ' · soon'}`);
-          return d;
-        }),
-      );
-    }
-    list.forEach((c, i) => {
-      const d = root.children[i] as HTMLElement;
-      d.style.display = c.visible ? '' : 'none';
-      d.style.left = `${c.x}px`;
-      d.style.top = `${c.y}px`;
-    });
+  courtLabels() {
+    $('#court-labels').replaceChildren();
   },
 };
 game.ui = ui;
@@ -215,44 +196,78 @@ $$('.tabs button').forEach((b) =>
 );
 // Arena cards: picking one rebuilds the stadium behind the menu and re-tints the UI.
 function buildArenaCards(): void {
-  const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+  const timeLabel = { day: 'Day', golden: 'Golden hour', night: 'Night' } as const;
+  const previews: [HTMLCanvasElement, ArenaId][] = [];
   $('#arena-cards').replaceChildren(
     ...ARENA_IDS.map((id) => {
-      const t = COURTS[id];
+      const t = ARENAS[id];
       const card = document.createElement('button');
       card.className = 'court-card';
       card.dataset.court = id;
       card.classList.toggle('active', id === game.arenaId);
-      const sw = document.createElement('div');
-      sw.className = 'cc-swatch';
-      for (const c of [t.court, t.alley ?? t.kitchen, t.surround, t.seatColors[0]]) {
-        const i = document.createElement('i');
-        i.style.background = hex(c);
-        sw.append(i);
-      }
+      const cv = document.createElement('canvas');
+      cv.className = 'cc-preview';
+      cv.width = 300;
+      cv.height = 170;
+      drawArenaPreview(cv, t);
+      previews.push([cv, id]);
       const sport = document.createElement('div');
       sport.className = 'cc-sport';
-      sport.textContent = { golden: 'Pickleball · Golden hour', dusk: 'Pickleball · Dusk', morning: 'Pickleball · Morning' }[t.time];
+      sport.textContent = `${t.number} · ${t.tagline} · ${timeLabel[t.lighting.default]}`;
       const h = document.createElement('h3');
       h.textContent = t.name;
       const para = document.createElement('p');
       para.textContent = t.blurb;
-      card.append(sw, sport, h, para);
+      card.append(cv, sport, h, para);
       card.addEventListener('click', () => selectArena(id));
       return card;
     }),
   );
+  // Redraw once the logo image and web fonts are ready (the plans include the script).
+  const redraw = () => previews.forEach(([cv, id]) => drawArenaPreview(cv, ARENAS[id]));
+  window.setTimeout(redraw, 600);
+  void document.fonts?.ready.then(redraw);
 }
-function selectArena(id: CourtId): void {
+/** Apply the arena's UI palette to the menu and HUD (data-driven, no per-arena CSS). */
+function applyArenaTheme(id: ArenaId): void {
+  const u = ARENAS[id].palette.ui;
+  const st = document.body.style;
+  st.setProperty('--bg', u.bg);
+  st.setProperty('--card', u.card);
+  st.setProperty('--ink', u.ink);
+  st.setProperty('--soft', u.soft);
+  st.setProperty('--accent', u.accent);
+  st.setProperty('--accent-deep', u.accentDeep);
+  st.setProperty('--accent2', u.accent2);
+  st.setProperty('--team0', u.accent);
+  st.setProperty('--team1', u.accent2);
+  document.body.dataset.court = id;
+}
+function selectArena(id: ArenaId): void {
   game.audio.uiClick();
   game.setArena(id);
   game.settings.arena = id;
   saveSettings(game.settings);
-  document.body.dataset.court = id;
+  applyArenaTheme(id);
   $$('.court-card').forEach((c) => c.classList.toggle('active', c.dataset.court === id));
 }
 buildArenaCards();
-document.body.dataset.court = game.arenaId;
+applyArenaTheme(game.arenaId);
+
+// Camera: C key or the HUD button cycles broadcast → bird's-eye → spectator.
+const camLabel = { broadcast: 'Broadcast', birdseye: "Bird's-eye", spectator: 'Spectator' } as const;
+function cycleCam(): void {
+  const v = game.cycleCamera();
+  game.settings.camera = v;
+  saveSettings(game.settings);
+  $('#cam-btn').title = `Camera: ${camLabel[v]} (C)`;
+  ui.toast(camLabel[v]);
+}
+game.setCameraView(settings.camera ?? 'broadcast');
+window.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'c' && !e.repeat && game.sim && !$('#hud').hidden) cycleCam();
+});
+$('#cam-btn').addEventListener('click', cycleCam);
 $('#btn-quick').addEventListener('click', () => start({ mode: 'match' }));
 $('#btn-practice').addEventListener('click', () => start({ mode: 'practice' }));
 $('#btn-coach-reset').addEventListener('click', (e) => {
@@ -345,6 +360,10 @@ function bindSettings(): void {
   sel('#set-difficulty', 'difficulty');
   sel('#set-points', 'pointsToWin', true);
   sel('#set-graphics', 'graphics');
+  sel('#set-time', 'timeOfDay');
+  sel('#set-camera', 'camera');
+  sel('#set-crowd-density', 'crowdDensity', true);
+  sel('#set-crowd-rate', 'crowdRate', true);
   sel('#set-text', 'textScale', true);
   range('#set-master', 'master');
   range('#set-music', 'music');
@@ -374,7 +393,11 @@ function applyDom(): void {
 
 function commit(heavy = true): void {
   saveSettings(game.settings);
-  if (heavy) game.applySettings(game.settings);
+  if (heavy) {
+    game.setCameraView(game.settings.camera ?? 'broadcast');
+    if (!game.sim && game.timeFor(game.arenaId) !== game.arenaTime) game.setArena(game.arenaId, true);
+    game.applySettings(game.settings);
+  }
   else game.audio.setVolumes({ master: game.settings.master, music: game.settings.music, crowd: game.settings.crowd, sfx: game.settings.sfx });
   applyDom();
 }

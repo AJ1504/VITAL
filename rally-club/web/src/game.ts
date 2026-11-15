@@ -22,9 +22,10 @@ import { MEMBERS, memberById } from './scene/members.ts';
 import { Pal, type PalLook } from './scene/pal.ts';
 import { PALETTE } from './scene/palette.ts';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { type ResortExtras, buildArena, disposeArena } from './scene/arena.ts';
+import type { ArenaId, TimeOfDay } from './arenas/config.ts';
+import { type ArenaExtras as ResortExtras, buildArena, disposeArena } from './arenas/build.ts';
+import { ARENAS, ARENA_IDS } from './arenas/presets.ts';
 import { radialTexture } from './scene/textures.ts';
-import { ARENA_IDS, COURTS, type CourtId } from './scene/themes.ts';
 import type { Venue } from './scene/venue.ts';
 import type { Settings } from './settings.ts';
 
@@ -132,6 +133,8 @@ export class Game {
   private bloom: UnrealBloomPass;
   private clock = new THREE.Clock();
   private camMode: CamMode = 'map';
+  /** Gameplay camera: broadcast (default), bird's-eye (top-down, court horizontal) or spectator. */
+  camView: 'broadcast' | 'birdseye' | 'spectator' = 'broadcast';
   private camT = 0;
   private camFocus: Side = 0;
   private camPos = new THREE.Vector3(0, 60, 70);
@@ -178,8 +181,8 @@ export class Game {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
-    const arenaId = ARENA_IDS.includes(settings.arena) ? settings.arena : 'coral';
-    const world = buildArena(this.scene, tmp.court, arenaId);
+    const arenaId: ArenaId = ARENA_IDS.includes(settings.arena) ? settings.arena : 'lavender';
+    const world = buildArena(this.scene, tmp.court, ARENAS[arenaId], this.timeFor(arenaId));
     this.venue = world;
     this.resort = world.extras;
     this.applyArenaLook();
@@ -272,15 +275,26 @@ export class Game {
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
-  get arenaId(): CourtId {
-    return this.resort.theme.id;
+  get arenaId(): ArenaId {
+    return this.resort.config.id;
   }
 
-  /** Swap the whole stadium (only between matches). */
-  setArena(id: CourtId): void {
-    if (id === this.resort.theme.id || this.sim) return;
+  get arenaTime(): TimeOfDay {
+    return this.resort.time;
+  }
+
+  /** Lighting preset for an arena: the player's choice, or the arena's default. */
+  timeFor(id: ArenaId): TimeOfDay {
+    const t = this.settings.timeOfDay;
+    return t && t !== 'auto' ? t : ARENAS[id].lighting.default;
+  }
+
+  /** Swap the whole stadium (between matches), or rebuild it for a new time of day. */
+  setArena(id: ArenaId, force = false): void {
+    if (this.sim && !force) return;
+    if (!force && id === this.resort.config.id && this.timeFor(id) === this.resort.time) return;
     disposeArena(this.venue.root);
-    const world = buildArena(this.scene, this.court, id);
+    const world = buildArena(this.scene, this.court, ARENAS[id], this.timeFor(id));
     this.venue = world;
     this.resort = world.extras;
     this.applyArenaLook();
@@ -288,6 +302,13 @@ export class Game {
     this.dj.root.position.copy(this.venue.djAnchor);
     this.bartender.root.position.copy(this.resort.bartender.pos);
     this.waiterT = 0;
+  }
+
+  /** HUD score + the in-world scoreboard. */
+  private pushScore(sim: MatchSim): void {
+    this.ui?.score(sim, this.names);
+    const st = sim.rules.state;
+    this.resort.scoreboard?.set(this.names, [st.score[0], st.score[1]], st.server, st.phase === 'game_over' ? 'FINAL' : sim.rules.scoreCall());
   }
 
   private applyArenaLook(): void {
@@ -344,10 +365,11 @@ export class Game {
     this.venue.sun.shadow.map?.dispose();
     (this.venue.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
     this.renderer.shadowMap.type = s.graphics === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-    const fill = { chairs: 0.42, steps: 0.5, benches: 0.75 }[this.resort.theme.seating];
-    const density = (s.graphics === 'low' ? 0.55 : s.graphics === 'medium' ? 0.85 : 1) * fill;
+    const fill = { grandstand: 0.42, bleachers: 0.5, 'cushion-steps': 0.5, terraces: 0.55 }[this.resort.config.bowl.seating];
+    const density = (s.graphics === 'low' ? 0.55 : s.graphics === 'medium' ? 0.85 : 1) * fill * (s.crowdDensity ?? 1);
     this.scene.remove(this.crowd.group);
     this.crowd = new Crowd(this.venue.seats, density, { outfits: PASTEL_OUTFITS, hatChance: 0.35, memberOutfits: PASTEL_OUTFITS });
+    this.crowd.rate = s.crowdRate ?? 30;
     this.scene.add(this.crowd.group);
     this.audio.setVolumes({ master: s.master, music: s.music, crowd: s.crowd, sfx: s.sfx });
     this.resize();
@@ -395,7 +417,7 @@ export class Game {
     this.pals[1].root.visible = cfg.mode === 'match';
     this.ui?.scoreCard(null);
     this.ui?.courtLabels([]);
-    this.ui?.score(this.sim, this.names);
+    this.pushScore(this.sim);
     this.ui?.rally(0);
     this.coachDone = !!cfg.autoplay || this.coachSeen();
     if (cfg.skipIntro || this.settings.reducedMotion) this.beginPlay();
@@ -404,7 +426,7 @@ export class Game {
       this.introT = 0;
       this.camMode = 'intro';
       this.camT = 0;
-      this.ui?.titleCard({ title: COURTS[this.resort.theme.id].name, sub: cfg.mode === 'practice' ? 'Practice session' : `Singles · first to ${s.pointsToWin}`, names: this.names });
+      this.ui?.titleCard({ title: ARENAS[this.resort.config.id].name, sub: cfg.mode === 'practice' ? 'Practice session' : `Singles · first to ${s.pointsToWin}`, names: this.names });
       this.audio.jingle('intro');
       this.crowd.setState('applause', 0.8);
       this.audio.crowd('applause', 0.8);
@@ -644,12 +666,12 @@ export class Game {
             if (e.gamePoint) window.setTimeout(() => this.ui?.banner('Game Point', 'game', this.names[st.server]), 900);
           }, 700);
         }
-        this.ui?.score(sim, this.names);
+        this.pushScore(sim);
         break;
       }
       case 'point_reset':
         this.ui?.scoreCard(null);
-        this.ui?.score(sim, this.names);
+        this.pushScore(sim);
         this.ui?.rally(0);
         this.camMode = 'follow';
         this.camT = 0;
@@ -675,7 +697,7 @@ export class Game {
         }, 2200);
         this.audio.jingle(e.winner === 0 ? 'victory' : 'defeat');
         this.resultAt = performance.now() + 5200;
-        this.ui?.score(sim, this.names);
+        this.pushScore(sim);
         break;
       }
       case 'practice_result':
@@ -938,13 +960,7 @@ export class Game {
   }
 
   private updateCourtLabels(): void {
-    if (!this.ui) return;
-    const el = this.renderer.domElement;
-    const list = this.resort.courts.map(({ theme, anchor }) => {
-      const v = this.v2.set(anchor.x, 3, anchor.z).project(this.camera);
-      return { id: theme.id, x: ((v.x + 1) / 2) * el.clientWidth, y: ((1 - v.y) / 2) * el.clientHeight, visible: v.z < 1 && this.camMode === 'map' };
-    });
-    this.ui.courtLabels(list);
+    this.ui?.courtLabels([]);
   }
 
   private updateTrail(show: boolean, speed: number): void {
@@ -1012,7 +1028,8 @@ export class Game {
         const t = THREE.MathUtils.clamp(this.camT / 4.0, 0, 1);
         const e = t * t * (3 - 2 * t);
         const u = 1 - e;
-        const P = INTRO_PATH;
+        const bb = this.resort.bounds;
+        const P = [new THREE.Vector3(-(bb.a + 14), 24, -(bb.b + 16)), new THREE.Vector3(-(bb.a + 8), 14, -2), new THREE.Vector3(-5, 8.5, bb.b + 4), INTRO_PATH[3]];
         pos.set(0, 0, 0).addScaledVector(P[0], u * u * u).addScaledVector(P[1], 3 * u * u * e).addScaledVector(P[2], 3 * u * e * e).addScaledVector(P[3], e * e * e);
         look.set(0, 0.6, -2.6 * e);
         this.camPos.copy(pos);
@@ -1052,7 +1069,32 @@ export class Game {
       }
       default: {
         const me = sim ? sim.players[0].pos : { x: 0, z: 6.5 };
-        const cutBack = this.camMode === 'follow' && this.camT <= dt + 1e-6;
+        const cutBack = (this.camMode === 'follow' && this.camT <= dt + 1e-6) || this.camViewChanged;
+        this.camViewChanged = false;
+        if (this.camView === 'birdseye') {
+          // True top-down: the court's long axis runs left–right on screen, never rotated geometry.
+          const fit = portrait ? 34 : 20;
+          pos.set(0, fit, 0.0001);
+          look.set(0, 0, 0);
+          stiffness = 6;
+          if (cutBack) {
+            this.camPos.copy(pos);
+            this.camLook.copy(look);
+          }
+          break;
+        }
+        if (this.camView === 'spectator') {
+          const bz = sim ? sim.ball.p.z : 0;
+          const bxs = sim ? sim.ball.p.x : 0;
+          pos.set(this.resort.bounds.a - 2.4, this.resort.bounds.standTop + 1.9, THREE.MathUtils.clamp(bz * 0.25, -4, 4) + 1.5);
+          look.set(bxs * 0.3, 0.6, bz * 0.45);
+          stiffness = 2.2;
+          if (cutBack) {
+            this.camPos.copy(pos);
+            this.camLook.copy(look);
+          }
+          break;
+        }
         const bx = sim ? sim.ball.p.x : 0;
         const h = portrait ? 8.5 : 5.2;
         const back = portrait ? 10.5 : 7.8;
@@ -1076,6 +1118,22 @@ export class Game {
       cam.position.y += (Math.random() - 0.5) * m;
       cam.position.z -= m * 0.6;
     }
+    const top = this.camView === 'birdseye' && (this.camMode === 'follow' || this.camMode === 'celebrate');
+    cam.up.set(top ? -1 : 0, top ? 0 : 1, 0);
     cam.lookAt(this.camLook);
+  }
+
+  private camViewChanged = false;
+
+  /** Cycle the gameplay camera (broadcast → bird's-eye → spectator). */
+  cycleCamera(): 'broadcast' | 'birdseye' | 'spectator' {
+    const order = ['broadcast', 'birdseye', 'spectator'] as const;
+    this.setCameraView(order[(order.indexOf(this.camView) + 1) % order.length]);
+    return this.camView;
+  }
+
+  setCameraView(v: 'broadcast' | 'birdseye' | 'spectator'): void {
+    this.camView = v;
+    this.camViewChanged = true;
   }
 }

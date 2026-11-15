@@ -178,3 +178,19 @@ Response to "not textured, animated or modelled like a Nintendo sports game". Th
 | Motion: stride-locked run cycle (no foot sliding), torso counter-rotation and steady head while running, swing-arc trails on every stroke | ✅ | ✅ gameplay video (`docs/vital-gameplay.mp4`) | |
 | Sculpted crowd: smooth seated and standing spectator bodies (instanced, one mesh per posture) replace the capsule torsos | ✅ | ✅ stills | |
 | Commentary intro is venue-neutral (it no longer mentions the old rooftop venue); TS and C++ tables changed together | ✅ | ✅ unit + parity | |
+
+## Pass 8 — Vital arena system (six arenas) (15 Nov 2026)
+
+Implements the "Court Arena Concepts" brief. Design and structure: `docs/ARENAS.md`.
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| Data-driven `ArenaConfig` plus a modular builder (court, bowl, architecture, DJ stage, decor, branding, lighting); all arenas share the court geometry, collision and rules | ✅ | ✅ typecheck, unit, e2e | `web/src/arenas/` |
+| Six arenas: Lavender Social, Lemon Grove, Azure Riviera, Terracotta Sunset, Pistachio Pavilion, Coral Disco | ✅ | ✅ aerial and gameplay stills of every arena | Lavender validated first |
+| Configurable logo placements on 11 surfaces using the supplied wordmark | ✅ | ✅ stills | |
+| In-world scoreboard fed live from the match | ✅ | ✅ close-up still | |
+| Day / golden / night presets (stars, moon and floodlights at night), per arena or global | ✅ | ✅ Coral (night), Lemon (day), Lavender (golden) | |
+| Cameras: isometric menu sweep, cinematic intro, broadcast, bird's-eye (court horizontal), spectator; C / ◎ to cycle | ✅ | ✅ bird's-eye and spectator stills | |
+| Arena selection cards with top-down plans drawn from each config; UI palette applied from config | ✅ | ✅ menu still | |
+| Crowd size and crowd animation-rate settings | ✅ | ✅ typecheck | |
+| Crowd LOD, KTX2 textures, phone profiling | ❌ | — | Listed in ARENAS.md |

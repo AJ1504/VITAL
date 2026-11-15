@@ -24,10 +24,7 @@
   --sans: var(--body);
   color-scheme: light;
 }
-body[data-court='coral'] { --bg: #fbefe8; --card: #fffaf6; --ink: #4a3a38; --soft: #9a8a86; --accent: #e39a7f; --accent-deep: #b9644b; --accent2: #9fbf9f; --team0: #e39a7f; --team1: #9fbf9f; }
-body[data-court='terrace'] { --bg: #f1f6ef; --card: #fffdf8; --ink: #24392c; --soft: #7d8f82; --accent: #8fcfb3; --accent-deep: #2f6b4a; --accent2: #f2e7a0; --team0: #8fcfb3; --team1: #f2d77a; }
-body[data-court='lavender'] { --bg: #f3f0f9; --card: #fdfbff; --ink: #3b3456; --soft: #8b86a0; --accent: #b9a3d8; --accent-deep: #6f5aa6; --accent2: #9fb4dc; --team0: #b9a3d8; --team1: #9fb4dc; }
-body[data-court='rose'] { --bg: #f8eff2; --card: #fffafb; --ink: #3f3a40; --soft: #958a92; --accent: #a9c9ad; --accent-deep: #5f8466; --accent2: #dcc4d6; --team0: #a9c9ad; --team1: #dcc4d6; }
+/* Per-arena colours are applied at runtime from the arena configs (main.ts applyArenaTheme). */
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: calc(16px * var(--text-scale)); -webkit-tap-highlight-color: transparent; }
@@ -236,3 +233,15 @@ body.high-contrast #scoreboard, body.high-contrast #subtitle { background: #fff;
 @media (max-width: 560px) {
   #subtitle { top: 126px; left: 14px; right: 14px; }
 }
+
+/* Arena cards with drawn plans */
+.panel-courts .courts { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.cc-preview { width: 100%; height: auto; aspect-ratio: 300 / 170; border-radius: 14px; display: block; box-shadow: inset 0 0 0 1px var(--line); }
+.court-card { padding: 8px 8px 10px; }
+.court-card h3 { font-size: 0.98em; }
+.court-card .cc-sport { font-size: 0.6em; letter-spacing: 0.12em; }
+.court-card p { font-size: 0.72em; -webkit-line-clamp: 2; }
+.cam-btn { right: max(68px, calc(env(safe-area-inset-right) + 68px)); font-size: 18px; letter-spacing: 0; }
+#energy { right: 128px; }
+@media (max-width: 1180px) { .panel-courts .courts { grid-template-columns: repeat(3, minmax(0, 1fr)); } .court-card p { display: none; } }
+@media (max-width: 560px) { .panel-courts .courts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

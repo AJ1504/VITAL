@@ -12,6 +12,9 @@ export interface IslandLook {
   sunColor: number;
   grass: number;
   dusk: boolean;
+  night?: boolean;
+  /** Shift the island along z (negative brings the far shore close behind the DJ). */
+  centerZ?: number;
 }
 
 export const ISLAND_R = 78;
@@ -55,12 +58,13 @@ function oceanMaterial(look: IslandLook, fogColor: THREE.Color): THREE.ShaderMat
       uTime: { value: 0 },
       uSun: { value: look.sunDir.clone().normalize() },
       uSunColor: { value: new THREE.Color(look.sunColor) },
-      uShallow: { value: new THREE.Color(look.dusk ? 0x8fd0d0 : 0x6fe0d6) },
-      uMid: { value: new THREE.Color(look.dusk ? 0x5aa0bf : 0x2fb2d8) },
-      uDeep: { value: new THREE.Color(look.dusk ? 0x3c5f99 : 0x1677c9) },
+      uShallow: { value: new THREE.Color(look.night ? 0x2f5f86 : look.dusk ? 0x8fd0d0 : 0x6fe0d6) },
+      uMid: { value: new THREE.Color(look.night ? 0x1d3f6e : look.dusk ? 0x5aa0bf : 0x2fb2d8) },
+      uDeep: { value: new THREE.Color(look.night ? 0x101e44 : look.dusk ? 0x3c5f99 : 0x1677c9) },
       uSky: { value: new THREE.Color(look.horizon) },
       uFog: { value: fogColor },
       uShore: { value: ISLAND_R + BEACH_W * 0.72 },
+      uCenter: { value: new THREE.Vector2(0, look.centerZ ?? 0) },
     },
     vertexShader: /* glsl */ `
       varying vec3 vWorld;
@@ -71,7 +75,7 @@ function oceanMaterial(look: IslandLook, fogColor: THREE.Color): THREE.ShaderMat
       }`,
     fragmentShader: /* glsl */ `
       uniform float uTime; uniform vec3 uSun; uniform vec3 uSunColor; uniform vec3 uShallow; uniform vec3 uMid;
-      uniform vec3 uDeep; uniform vec3 uSky; uniform vec3 uFog; uniform float uShore;
+      uniform vec3 uDeep; uniform vec3 uSky; uniform vec3 uFog; uniform float uShore; uniform vec2 uCenter;
       varying vec3 vWorld;
       float h(vec2 p) {
         float t = uTime;
@@ -84,7 +88,7 @@ function oceanMaterial(look: IslandLook, fogColor: THREE.Color): THREE.ShaderMat
         float e = 0.35;
         vec3 n = normalize(vec3(h(p - vec2(e, 0.0)) - h(p + vec2(e, 0.0)), 6.0, h(p - vec2(0.0, e)) - h(p + vec2(0.0, e))));
         vec3 V = normalize(cameraPosition - vWorld);
-        float r = length(p);
+        float r = length(p - uCenter);
         float depth = smoothstep(uShore, uShore + 60.0, r);
         vec3 water = mix(uShallow, uMid, smoothstep(0.0, 0.35, depth));
         water = mix(water, uDeep, smoothstep(0.35, 1.0, depth));
@@ -94,7 +98,8 @@ function oceanMaterial(look: IslandLook, fogColor: THREE.Color): THREE.ShaderMat
         float spec = pow(max(dot(R, V), 0.0), 160.0);
         col += uSunColor * spec * 1.6;
         // Shore foam: a soft breaking band that laps in and out.
-        float lap = sin(uTime * 0.8 + atan(p.y, p.x) * 7.0) * 0.8;
+        vec2 pc = p - uCenter;
+        float lap = sin(uTime * 0.8 + atan(pc.y, pc.x) * 7.0) * 0.8;
         float band = 1.0 - smoothstep(0.0, 2.2, abs(r - (uShore + 1.6 + lap)));
         float sparkle = step(0.55, fract(sin(dot(floor(p * 2.0), vec2(12.9898, 78.233))) * 43758.5453 + uTime * 0.15));
         float foam = band * (0.55 + 0.45 * sparkle) + (1.0 - smoothstep(0.0, 1.0, r - uShore)) * 0.9;
@@ -109,7 +114,10 @@ function oceanMaterial(look: IslandLook, fogColor: THREE.Color): THREE.ShaderMat
   });
 }
 
-export function buildIsland(root: THREE.Object3D, look: IslandLook, fogColor: THREE.Color, rnd: () => number): { tick(t: number): void } {
+export function buildIsland(parent: THREE.Object3D, look: IslandLook, fogColor: THREE.Color, rnd: () => number): { tick(t: number): void } {
+  const root = new THREE.Group();
+  root.position.z = look.centerZ ?? 0;
+  parent.add(root);
   // Lawn plateau (textured, slightly domed edge into the beach).
   const lawnMat = new THREE.MeshStandardMaterial({ color: look.grass, map: grassTex(7), roughness: 1 });
   const lawnShape = new THREE.Shape();
@@ -202,7 +210,7 @@ export function buildIsland(root: THREE.Object3D, look: IslandLook, fogColor: TH
         band.position.set(x + w * 0.9, 10 + k * 6, z);
         far.add(band);
       }
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(2, 12, 8), new THREE.MeshStandardMaterial({ color: 0xfff3c8, emissive: 0xffe08a, emissiveIntensity: look.dusk ? 2 : 0.6 }));
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(2, 12, 8), new THREE.MeshStandardMaterial({ color: 0xfff3c8, emissive: 0xffe08a, emissiveIntensity: look.night ? 3 : look.dusk ? 2 : 0.6 }));
       lamp.position.set(x + w * 0.9, 30.5, z);
       far.add(lamp);
     }
@@ -226,7 +234,7 @@ export function buildIsland(root: THREE.Object3D, look: IslandLook, fogColor: TH
   const cp = cloudGeo.attributes.position as THREE.BufferAttribute;
   for (let i = 0; i < cp.count; i++) if (cp.getY(i) < 0.2) cp.setY(i, 0.2); // flat bottoms
   cloudGeo.computeVertexNormals();
-  const cloudMat = new THREE.MeshStandardMaterial({ color: look.dusk ? 0xffe2e6 : 0xffffff, emissive: look.dusk ? 0x6a4f7a : 0x9fb6d0, emissiveIntensity: 0.45, roughness: 1, fog: false });
+  const cloudMat = new THREE.MeshStandardMaterial({ color: look.night ? 0x5a5f92 : look.dusk ? 0xffe2e6 : 0xffffff, emissive: look.night ? 0x1c1f40 : look.dusk ? 0x6a4f7a : 0x9fb6d0, emissiveIntensity: 0.45, roughness: 1, fog: false });
   const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, 18);
   for (let i = 0; i < 18; i++) {
     const a = (i / 18) * Math.PI * 2 + rnd() * 0.3;

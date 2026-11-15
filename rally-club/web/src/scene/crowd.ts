@@ -119,6 +119,8 @@ export class Crowd {
   private off = new THREE.Vector3();
   private people: Spectator[] = [];
   state: CrowdState = 'idle';
+  /** Animation updates per second (performance setting). */
+  rate = 30;
   intensity = 0.2;
   private stateAge = 0;
   private m = new THREE.Matrix4();
@@ -207,7 +209,7 @@ export class Crowd {
     }
     // Re-pose at 30 Hz (crowd motion is slow; halves the CPU cost on high-refresh screens).
     this.acc += dt;
-    if (this.acc < 1 / 30) return;
+    if (this.acc < 1 / this.rate) return;
     dt = Math.min(this.acc, 0.1);
     this.acc = 0;
     const motion = reducedMotion ? 0.3 : 1;

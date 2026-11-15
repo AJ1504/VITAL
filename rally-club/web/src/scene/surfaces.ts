@@ -154,6 +154,25 @@ export function grainTex(metres = 2): THREE.CanvasTexture {
   );
 }
 
+/** Microcement: a very soft trowelled mottle for floors (much subtler than plaster). */
+export function microTex(metres = 4): THREE.CanvasTexture {
+  return cached(`micro${metres}`, () =>
+    canvasTexture(
+      256,
+      (g, s) => {
+        g.fillStyle = '#f7f7f5';
+        g.fillRect(0, 0, s, s);
+        blotches(g, s, 18, 30, 80, () => (rnd() < 0.5 ? 'rgba(232,230,226,0.22)' : 'rgba(255,255,255,0.35)'));
+        for (let i = 0; i < 4000; i++) {
+          g.fillStyle = `rgba(210,205,198,${rnd() * 0.08})`;
+          g.fillRect(rnd() * s, rnd() * s, 1, 1);
+        }
+      },
+      metres,
+    ),
+  );
+}
+
 /** Light plaster / smooth stone for stands and walls. */
 export function plasterTex(metres = 3): THREE.CanvasTexture {
   return cached(`plaster${metres}`, () =>

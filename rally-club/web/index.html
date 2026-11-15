@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
-  <body data-court="coral">
+  <body data-court="lavender">
     <div id="stage"></div>
 
     <!-- ===================== HUD ===================== -->
@@ -28,8 +28,9 @@
       <div id="toast" aria-live="assertive"></div>
       <div id="subtitle" aria-live="polite"><span class="sub-who">Commentary</span><span id="subtitle-text"></span></div>
       <div id="coach" hidden><div class="coach-step" id="coach-text"></div></div>
-      <div id="controls-hint"><span><kbd>Space</kbd> or <kbd>click</kbd> swing</span><span>early = crosscourt · late = down the line</span><span><kbd>Esc</kbd> pause</span></div>
+      <div id="controls-hint"><span><kbd>Space</kbd> or <kbd>click</kbd> swing</span><span>early = crosscourt · late = down the line</span><span><kbd>C</kbd> camera</span><span><kbd>Esc</kbd> pause</span></div>
       <button id="pause-btn" class="icon-btn" aria-label="Pause">❚❚</button>
+      <button id="cam-btn" class="icon-btn cam-btn" aria-label="Change camera" title="Camera (C)">◎</button>
       <div id="touch-controls">
         <div class="tc-shots">
           <button data-shot="lob" aria-label="Lob">Lob</button>
@@ -42,7 +43,7 @@
     <!-- ===================== PRESENTATION OVERLAYS ===================== -->
     <div id="title-card" hidden>
       <div class="tc-kicker">Vital Pickleball Club</div>
-      <div class="tc-title" id="tc-title">The Coral Club</div>
+      <div class="tc-title" id="tc-title">Lavender Social</div>
       <div class="tc-sub" id="tc-sub">Singles · first to 11</div>
       <div class="tc-vs"><span id="tc-p0">You</span><i>vs</i><span id="tc-p1">Rafa</span></div>
       <div class="tc-skip">Press any key to skip</div>
@@ -113,6 +114,18 @@
           <legend>Display</legend>
           <label class="field">Graphics
             <select id="set-graphics"><option value="low">Smooth (fastest)</option><option value="medium">Balanced</option><option value="high">Beautiful</option></select>
+          </label>
+          <label class="field">Time of day
+            <select id="set-time"><option value="auto">Arena default</option><option value="day">Day</option><option value="golden">Golden hour</option><option value="night">Night</option></select>
+          </label>
+          <label class="field">Camera
+            <select id="set-camera"><option value="broadcast">Broadcast</option><option value="birdseye">Bird's-eye</option><option value="spectator">Spectator</option></select>
+          </label>
+          <label class="field">Crowd size
+            <select id="set-crowd-density"><option value="0">Empty</option><option value="0.35">Light</option><option value="0.7">Busy</option><option value="1">Full</option></select>
+          </label>
+          <label class="field">Crowd animation
+            <select id="set-crowd-rate"><option value="15">Low (mobile)</option><option value="30">Standard</option><option value="60">Smooth</option></select>
           </label>
           <label class="check"><input type="checkbox" id="set-shake" /> Camera shake</label>
           <label class="check"><input type="checkbox" id="set-subtitles" /> Subtitles</label>
