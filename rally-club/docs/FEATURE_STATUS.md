@@ -165,3 +165,16 @@ Built from the owner's Vital logo and four arena mood boards. This replaces the 
 | Broadcast hard cuts for the point-winner and celebration cameras (no sweep through the player) | ✅ | ✅ camera trace | |
 | Performance: about 150–180 draw calls and 0.23–0.43M triangles at Medium (was about 310 and 0.5M) | ✅ | ✅ `renderer.info` | Not yet profiled on a phone |
 | Free CC0 character packs evaluated (Kenney Mini Characters): rejected, because the 6-bone rig has no elbows or knees. AI 3D generation (Higgsfield/Meshy) needs paid credits | — | — | See the session notes |
+
+## Pass 7 — island world, textures, motion polish (15 Nov 2026)
+
+Response to "not textured, animated or modelled like a Nintendo sports game". This pass works in the genre's bright island-resort style. It uses no Nintendo assets, characters or locations.
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| **Island setting** for every arena: textured lawn plateau, sandy beach with towels and rocks, animated ocean shader (shallow-to-deep turquoise, sky fresnel, sun glints, lapping shore foam), puffy 3D clouds, distant islands with a lighthouse, drifting sailboats, sun glow | ✅ | ✅ stills + video | `web/src/scene/island.ts` |
+| **Stylised textures** generated in code: striped lawn, sand, stone paving, plaster stands, court grain, timber; world-scaled UVs on steps and walls | ✅ | ✅ stills | `web/src/scene/surfaces.ts` |
+| Character shading: soft fresnel rim light on members, crowd and props | ✅ | ✅ stills | |
+| Motion: stride-locked run cycle (no foot sliding), torso counter-rotation and steady head while running, swing-arc trails on every stroke | ✅ | ✅ gameplay video (`docs/vital-gameplay.mp4`) | |
+| Sculpted crowd: smooth seated and standing spectator bodies (instanced, one mesh per posture) replace the capsule torsos | ✅ | ✅ stills | |
+| Commentary intro is venue-neutral (it no longer mentions the old rooftop venue); TS and C++ tables changed together | ✅ | ✅ unit + parity | |

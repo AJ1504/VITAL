@@ -7,7 +7,7 @@ void UAtmosphereDirectorSubsystem::InitCommentary()
 	if (Commentary.Num() > 0) return;
 	// Original placeholder copy for the temporary VO pass (mirrors shared/src/commentary.ts).
 	// P6: move to a DataTable with recorded voice assets per line.
-	Commentary.Add("intro", {9, 60, {TEXT("Good evening and welcome to the Sunset Rooftop Club — golden hour, a full terrace, and {a} versus {b}."), TEXT("The sun is low, the DJ is warm, and the court is emerald. {a} and {b}, the floor is yours."), TEXT("What a setting for pickleball. {a} against {b}, first to {target}. Let’s play!")}});
+	Commentary.Add("intro", {9, 60, {TEXT("Welcome to the Vital Pickleball Club — a full house, the DJ is rolling, and it’s {a} versus {b}."), TEXT("The sun is out, the music is warm, and the court is ready. {a} and {b}, the floor is yours."), TEXT("What a setting for pickleball. {a} against {b}, first to {target}. Let’s play!")}});
 	Commentary.Add("serve_fault", {4, 6, {TEXT("Oh, the serve doesn’t find the box."), TEXT("Fault on the serve — that one wandered."), TEXT("Not the serve {server} {was} looking for.")}});
 	Commentary.Add("ace", {6, 8, {TEXT("Unreturnable! Served up and delivered."), TEXT("Ace! The terrace loved that one."), TEXT("Straight past them — a serve with a postmark.")}});
 	Commentary.Add("long_rally", {5, 12, {TEXT("Listen to this crowd — {rally} shots and counting!"), TEXT("Neither of them will blink. What a rally!"), TEXT("Back and forth, back and forth… someone has to crack.")}});

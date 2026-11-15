@@ -24,6 +24,7 @@ by the project; anything else needs a licence reference and the person who verif
 | Vital script logo (`web/src/brand/vital-white.png`, `vital-green.png`) | Brand mark (raster, transparent) | Supplied by the project owner (logo image shared in the session, 2026-11-15); background removed in-session | Project-owned brand | Claude Code pass 6, 2026-11-15 | Used in the UI, court paint, banners, DJ booth and crests |
 | Vital arenas: Coral Club, Mint Terrace, Lavender Amphitheatre, Rosé Garden (bowls, chairs, DJ booths, disco ball, sails, cabanas, bar, palms) | 3D (procedural) | Original — `web/src/scene/arena.ts`, `kit.ts`, `themes.ts` | Project-owned | Claude Code pass 6, 2026-11-15 | Designed from the owner's mood-board renders; no third-party meshes |
 | Member bodies (SDF-sculpted skinned meshes) | 3D (procedural) | Original — `web/src/scene/body.ts` | Project-owned | Claude Code pass 6, 2026-11-15 | Generated at runtime |
+| Island world, ocean shader, stylised surface textures, sculpted crowd | 3D + shaders + textures (procedural) | Original — `island.ts`, `surfaces.ts`, `crowd.ts`, `fx.ts` | Project-owned | Claude Code pass 7, 2026-11-15 | Genre-inspired (sunny island sports resort); no third-party or Nintendo assets |
 | Three.js 0.170.0 | Library | npm | MIT | Claude Code pass 1, 2026-11-14 | |
 | Vite 6.3.5, TypeScript 5.8.3 | Dev tooling | npm | MIT / Apache-2.0 | Claude Code pass 1, 2026-11-14 | Not shipped |
 | `/Engine/BasicShapes/Sphere` (ball placeholder in UE) | 3D | Unreal Engine | Unreal EULA | — | Replace with project ball mesh |

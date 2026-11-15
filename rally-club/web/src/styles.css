@@ -207,7 +207,7 @@ body.high-contrast #scoreboard, body.high-contrast #subtitle { background: #fff;
   .panel-courts .courts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .members { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .settings { grid-template-columns: 1fr; max-height: 62vh; overflow-y: auto; }
-  #subtitle { top: auto; bottom: 64px; max-width: calc(100vw - 32px); }
+  #subtitle { left: 244px; right: 72px; transform: none; max-width: none; font-size: 0.88em; }
 }
 @media (max-width: 560px) {
   .court-card p { display: none; }
@@ -232,3 +232,7 @@ body.high-contrast #scoreboard, body.high-contrast #subtitle { background: #fff;
 .court-card { padding: 10px 14px 12px; gap: 4px; }
 .court-card p { font-size: 0.78em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .court-card h3 { font-size: 1.08em; }
+
+@media (max-width: 560px) {
+  #subtitle { top: 126px; left: 14px; right: 14px; }
+}

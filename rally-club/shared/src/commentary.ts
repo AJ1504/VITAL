@@ -34,8 +34,8 @@ export const COMMENTARY: Record<CommentaryCategory, CategoryDef> = {
     priority: 9,
     cooldown: 60,
     lines: [
-      'Good evening and welcome to the Sunset Rooftop Club — golden hour, a full terrace, and {a} versus {b}.',
-      'The sun is low, the DJ is warm, and the court is emerald. {a} and {b}, the floor is yours.',
+      'Welcome to the Vital Pickleball Club — a full house, the DJ is rolling, and it’s {a} versus {b}.',
+      'The sun is out, the music is warm, and the court is ready. {a} and {b}, the floor is yours.',
       'What a setting for pickleball. {a} against {b}, first to {target}. Let’s play!',
     ],
   },

@@ -3,6 +3,8 @@
 
 import * as THREE from 'three';
 import type { CrowdState } from '../../../shared/src/atmosphere.ts';
+import { surfaceNets, type V3 } from './body.ts';
+import { addRim } from './surfaces.ts';
 import { HAIR_COLORS, OUTFIT_COLORS, PALETTE, SKIN_TONES } from './palette.ts';
 
 interface Spectator {
@@ -24,9 +26,88 @@ export interface CrowdOptions {
   memberOutfits?: readonly number[];
 }
 
+
+// ------------------------------------------------------------------ sculpted spectator bodies
+// One smooth body (torso + legs) per posture, sculpted from a distance field and meshed once; vertex
+// shades keep shirts bright and legs a deeper tone of the same outfit colour (instance colour).
+const smin = (a: number, b: number, k: number) => {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
+};
+function cap(p: V3, a: V3, b: V3, r0: number, r1: number, sz = 1): number {
+  const qz = a[2] + (p[2] - a[2]) / sz;
+  const bx = b[0] - a[0];
+  const by = b[1] - a[1];
+  const bz = b[2] - a[2];
+  const l2 = bx * bx + by * by + bz * bz;
+  let t = l2 ? ((p[0] - a[0]) * bx + (p[1] - a[1]) * by + (qz - a[2]) * bz) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const d = Math.hypot(p[0] - a[0] - bx * t, p[1] - a[1] - by * t, qz - a[2] - bz * t) - (r0 + (r1 - r0) * t);
+  return sz < 1 ? d * sz : d;
+}
+function ell(p: V3, c: V3, r: V3): number {
+  const x = (p[0] - c[0]) / r[0];
+  const y = (p[1] - c[1]) / r[1];
+  const z = (p[2] - c[2]) / r[2];
+  return (Math.sqrt(x * x + y * y + z * z) - 1) * Math.min(r[0], r[1], r[2]);
+}
+function spectatorGeometry(seated: boolean): THREE.BufferGeometry {
+  const torso = (p: V3) => {
+    let d = ell(p, [0, -0.1, 0.02], [0.15, 0.1, 0.12]);
+    d = smin(d, cap(p, [0, -0.05, 0.02], [0, 0.22, 0.01], 0.135, 0.145, 0.8), 0.05);
+    d = smin(d, ell(p, [0, 0.2, 0], [0.165, 0.13, 0.11]), 0.05);
+    d = smin(d, cap(p, [-0.14, 0.29, 0.01], [0.14, 0.29, 0.01], 0.06, 0.06, 0.85), 0.05);
+    return smin(d, cap(p, [0, 0.3, 0.01], [0, 0.43, 0.015], 0.048, 0.044), 0.04);
+  };
+  const legs = (p: V3) => {
+    let d = Infinity;
+    for (const sx of [-1, 1]) {
+      const hip: V3 = [sx * 0.08, -0.12, 0.0];
+      const knee: V3 = seated ? [sx * 0.09, -0.13, -0.38] : [sx * 0.085, -0.5, -0.02];
+      const ankle: V3 = seated ? [sx * 0.09, -0.52, -0.41] : [sx * 0.085, -0.86, 0.0];
+      let l = cap(p, hip, knee, 0.072, 0.055);
+      l = smin(l, cap(p, knee, ankle, 0.052, 0.04), 0.02);
+      l = smin(l, ell(p, [ankle[0], ankle[1] - 0.04, ankle[2] - 0.05], [0.048, 0.04, 0.095]), 0.02);
+      d = Math.min(d, l);
+    }
+    return d;
+  };
+  const field = (p: V3) => smin(torso(p), legs(p), 0.035);
+  const { pos, index } = surfaceNets(field, [-0.3, seated ? -0.62 : -0.96, seated ? -0.56 : -0.22], [0.3, 0.5, 0.2], 0.045);
+  const n = pos.length / 3;
+  const nor = new Float32Array(n * 3);
+  const col = new Float32Array(n * 3);
+  const e = 0.004;
+  for (let v = 0; v < n; v++) {
+    const q: V3 = [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
+    const gx = field([q[0] + e, q[1], q[2]]) - field([q[0] - e, q[1], q[2]]);
+    const gy = field([q[0], q[1] + e, q[2]]) - field([q[0], q[1] - e, q[2]]);
+    const gz = field([q[0], q[1], q[2] + e]) - field([q[0], q[1], q[2] - e]);
+    const l = Math.hypot(gx, gy, gz) || 1;
+    nor.set([gx / l, gy / l, gz / l], v * 3);
+    // Shade: shirt (1.0), legs/shorts (0.62), shoes (near white tint 0.95), neck (skin-ish warm).
+    const isLeg = legs(q) < torso(q);
+    const isShoe = isLeg && q[1] < (seated ? -0.5 : -0.84);
+    const isNeck = q[1] > 0.33;
+    const k = isShoe ? 0.95 : isLeg ? 0.62 : 1;
+    if (isNeck) col.set([0.93, 0.76, 0.62], v * 3);
+    else col.set([k, k, k], v * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(index);
+  return g;
+}
+let seatedGeo: THREE.BufferGeometry | null = null;
+let standingGeo: THREE.BufferGeometry | null = null;
+
 export class Crowd {
   readonly group = new THREE.Group();
   private bodies: THREE.InstancedMesh;
+  private standers: THREE.InstancedMesh;
+  private zero = new THREE.Matrix4().makeScale(0, 0, 0);
   private heads: THREE.InstancedMesh;
   private hair: THREE.InstancedMesh;
   private arms: THREE.InstancedMesh;
@@ -60,9 +141,13 @@ export class Crowd {
       this.hasDrink.push(rnd() < 0.35);
     }
     const n = this.people.length;
-    const std = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+    const std = addRim(new THREE.MeshStandardMaterial({ roughness: 0.8 }), 0xfff2e2, 0.12);
     // Realistic adult proportions: tapered torso, small head (scaled geometry, shared by all instances).
-    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.17, 0.38, 2, 8).scale(1.15, 1, 0.72), std, n);
+    seatedGeo ??= spectatorGeometry(true);
+    standingGeo ??= spectatorGeometry(false);
+    const bodyMat = addRim(new THREE.MeshStandardMaterial({ roughness: 0.75, vertexColors: true }), 0xfff2e2, 0.12);
+    this.bodies = new THREE.InstancedMesh(seatedGeo, bodyMat, n);
+    this.standers = new THREE.InstancedMesh(standingGeo, bodyMat, n);
     // Friendly, big-headed spectators (same family as the player characters) with simple dot eyes.
     this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.155, 12, 8), std.clone(), n);
     this.hair = new THREE.InstancedMesh(new THREE.SphereGeometry(0.163, 10, 4, 0, Math.PI * 2, 0, Math.PI * 0.5).rotateX(0.35), std.clone(), n);
@@ -74,7 +159,7 @@ export class Crowd {
       for (let i = 0; i < n; i++) this.drinks.setColorAt(i, dc.setHex(drinkCols[i % drinkCols.length]));
     }
     this.eyes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.024, 5, 3).scale(0.8, 1.25, 0.5), new THREE.MeshStandardMaterial({ color: 0x2a1f1c, roughness: 0.4 }), n * 2);
-    this.arms = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.05, 0.4, 1, 5), std.clone(), n * 2);
+    this.arms = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.048, 0.34, 2, 8), std.clone(), n * 2);
     // Straw boater: crown + brim (lathe profile).
     const hatProfile = [new THREE.Vector2(0, 0.09), new THREE.Vector2(0.15, 0.09), new THREE.Vector2(0.155, 0.0), new THREE.Vector2(0.27, 0.0), new THREE.Vector2(0.27, -0.015), new THREE.Vector2(0, -0.015)];
     this.hats = new THREE.InstancedMesh(new THREE.LatheGeometry(hatProfile, 12).scale(0.85, 0.8, 0.85), new THREE.MeshStandardMaterial({ roughness: 0.9 }), n);
@@ -84,12 +169,13 @@ export class Crowd {
       const outfit = pool[Math.floor(rnd() * pool.length)];
       this.hats.setColorAt(i, c.setHex(rnd() < 0.75 ? 0xe6cf98 : rnd() < 0.5 ? 0xffffff : 0x1c2a44));
       this.bodies.setColorAt(i, c.setHex(outfit));
+      this.standers.setColorAt(i, c);
       this.heads.setColorAt(i, c.setHex(SKIN_TONES[Math.floor(rnd() * SKIN_TONES.length)]));
       this.hair.setColorAt(i, c.setHex(rnd() < 0.15 ? PALETTE.cream : HAIR_COLORS[Math.floor(rnd() * HAIR_COLORS.length)]));
       this.arms.setColorAt(i * 2, c.setHex(outfit));
       this.arms.setColorAt(i * 2 + 1, c.setHex(outfit));
     }
-    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes, this.drinks]) {
+    for (const im of [this.bodies, this.standers, this.heads, this.hair, this.arms, this.hats, this.eyes, this.drinks]) {
       im.castShadow = im !== this.eyes;
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.group.add(im);
@@ -125,6 +211,8 @@ export class Crowd {
     dt = Math.min(this.acc, 0.1);
     this.acc = 0;
     const motion = reducedMotion ? 0.3 : 1;
+    let anyStand = false;
+    let anySit = false;
     for (let i = 0; i < this.people.length; i++) {
       const p = this.people[i];
       p.phase += dt * (1 + p.excitability);
@@ -169,7 +257,10 @@ export class Crowd {
       this.e.set(lean, p.yaw, sway);
       this.q.setFromEuler(this.e);
       this.m.compose(this.v.set(p.base.x, baseY + y, p.base.z), this.q, this.s);
-      this.bodies.setMatrixAt(i, this.m);
+      if (stand) anyStand = true;
+      else anySit = true;
+      this.bodies.setMatrixAt(i, stand ? this.zero : this.m);
+      this.standers.setMatrixAt(i, stand ? this.m : this.zero);
       // Head sits above the body along the body's local up.
       const hx = p.base.x - Math.sin(p.yaw) * Math.sin(lean) * 0.45;
       const hz = p.base.z - Math.cos(p.yaw) * Math.sin(lean) * 0.45;
@@ -193,8 +284,8 @@ export class Crowd {
       } else this.m.makeScale(0, 0, 0);
       this.drinks.setMatrixAt(i, this.m);
       for (const side of [-1, 1]) {
-        const ax = p.base.x + Math.cos(p.yaw) * side * 0.26;
-        const az = p.base.z - Math.sin(p.yaw) * side * 0.26;
+        const ax = p.base.x + Math.cos(p.yaw) * side * 0.215;
+        const az = p.base.z - Math.sin(p.yaw) * side * 0.215;
         this.e.set(0, p.yaw, side * (0.15 + armUp * 1.2));
         this.q.setFromEuler(this.e);
         const up = armUp > 0.6 ? 0.3 : 0;
@@ -202,6 +293,9 @@ export class Crowd {
         this.arms.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), this.m);
       }
     }
-    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes, this.drinks]) im.instanceMatrix.needsUpdate = true;
+    for (const im of [this.bodies, this.standers, this.heads, this.hair, this.arms, this.hats, this.eyes, this.drinks]) im.instanceMatrix.needsUpdate = true;
+    // Only draw the posture meshes in use (zero-scaled instances still cost vertex work).
+    this.standers.visible = anyStand;
+    this.bodies.visible = anySit;
   }
 }

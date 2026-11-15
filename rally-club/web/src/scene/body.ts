@@ -5,6 +5,7 @@
 // knees, driven by the existing pose/animation system. Geometry is cached per outfit cut.
 
 import * as THREE from 'three';
+import { addRim } from './surfaces.ts';
 
 export type BodyTop = 'polo' | 'tank' | 'cardigan' | 'crop' | 'tee';
 export type BodyBottom = 'shorts' | 'skirt' | 'trousers';
@@ -66,7 +67,7 @@ const ADJ_I: number[][] = BONES.map((b) => ADJ_SRC[b].map((x) => BONES.indexOf(x
 const R = { Skin: 0, Shirt: 1, Trim: 2, Lower: 3, Sock: 4, Shoe: 5, Sole: 6, Wrist: 7 } as const;
 type R = (typeof R)[keyof typeof R];
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 interface Prim {
   kind: 'cap' | 'ell';
   a: V3;
@@ -259,6 +260,71 @@ function sculpt(look: BodyLook, P: Record<string, V3>): BodyGeo {
   const h = 0.0145;
   const min: V3 = [-0.68, -0.02, -0.26];
   const max: V3 = [0.68, 1.53, 0.2];
+  const { pos, index } = surfaceNets(field, min, max, h);
+  const vc = pos.length / 3;
+  const nor = new Float32Array(vc * 3);
+  const regions = new Uint8Array(vc);
+  const e = 0.004;
+  for (let v = 0; v < vc; v++) {
+    const q: V3 = [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
+    const gx = field([q[0] + e, q[1], q[2]]) - field([q[0] - e, q[1], q[2]]);
+    const gy = field([q[0], q[1] + e, q[2]]) - field([q[0], q[1] - e, q[2]]);
+    const gz = field([q[0], q[1], q[2] + e]) - field([q[0], q[1], q[2] - e]);
+    const l = Math.hypot(gx, gy, gz) || 1;
+    nor[v * 3] = gx / l;
+    nor[v * 3 + 1] = gy / l;
+    nor[v * 3 + 2] = gz / l;
+    // Region: the nearest primitive's clothing zone (clothing flares sit slightly outside the skin).
+    let best = Infinity;
+    let reg: R = R.Skin;
+    for (const pr of prims) {
+      const d = primDist(pr, q);
+      if (d < best - 0.002) {
+        best = d;
+        reg = pr.region(pr.kind === 'cap' ? capT(pr.sz && pr.sz !== 1 ? [q[0], q[1], pr.a[2] + (q[2] - pr.a[2]) / pr.sz] : q, pr.a, pr.b) : 0, q);
+      }
+    }
+    regions[v] = reg;
+  }
+
+  {
+    const nbr: number[][] = Array.from({ length: vc }, () => []);
+    for (let i = 0; i < index.length; i += 3)
+      for (let k = 0; k < 3; k++) {
+        const a = index[i + k];
+        const c = index[i + ((k + 1) % 3)];
+        nbr[a].push(c);
+        nbr[c].push(a);
+      }
+    const counts = new Uint16Array(8);
+    for (let pass = 0; pass < 3; pass++) {
+      const next = regions.slice();
+      for (let v = 0; v < vc; v++) {
+        counts.fill(0);
+        counts[regions[v]] += 2;
+        for (const u of nbr[v]) counts[regions[u]]++;
+        let bestR = regions[v];
+        for (let r = 0; r < 8; r++) if (counts[r] > counts[bestR]) bestR = r;
+        next[v] = bestR;
+      }
+      regions.set(next);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setIndex(index);
+  const out = { geo, regions };
+  cache.set(key, out);
+  return out;
+}
+
+/**
+ * Mesh the zero level set of a distance-like field with naive surface nets (coarse-to-fine sampling,
+ * one Laplacian smoothing pass). Returns positions and triangle indices; normals are left to the caller
+ * (the field gradient gives the smoothest result).
+ */
+export function surfaceNets(field: (p: V3) => number, min: V3, max: V3, h: number): { pos: Float32Array; index: number[] } {
   const nx = Math.ceil((max[0] - min[0]) / h) + 1;
   const ny = Math.ceil((max[1] - min[1]) / h) + 1;
   const nz = Math.ceil((max[2] - min[2]) / h) + 1;
@@ -396,61 +462,7 @@ function sculpt(look: BodyLook, P: Record<string, V3>): BodyGeo {
     for (let v = 0; v < vc; v++)
       if (cnt[v]) for (let k = 0; k < 3; k++) pos[v * 3 + k] = verts[v * 3 + k] * 0.5 + (acc[v * 3 + k] / cnt[v]) * 0.5;
   }
-  const nor = new Float32Array(vc * 3);
-  const regions = new Uint8Array(vc);
-  const e = 0.004;
-  for (let v = 0; v < vc; v++) {
-    const q: V3 = [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
-    const gx = field([q[0] + e, q[1], q[2]]) - field([q[0] - e, q[1], q[2]]);
-    const gy = field([q[0], q[1] + e, q[2]]) - field([q[0], q[1] - e, q[2]]);
-    const gz = field([q[0], q[1], q[2] + e]) - field([q[0], q[1], q[2] - e]);
-    const l = Math.hypot(gx, gy, gz) || 1;
-    nor[v * 3] = gx / l;
-    nor[v * 3 + 1] = gy / l;
-    nor[v * 3 + 2] = gz / l;
-    // Region: the nearest primitive's clothing zone (clothing flares sit slightly outside the skin).
-    let best = Infinity;
-    let reg: R = R.Skin;
-    for (const pr of prims) {
-      const d = primDist(pr, q);
-      if (d < best - 0.002) {
-        best = d;
-        reg = pr.region(pr.kind === 'cap' ? capT(pr.sz && pr.sz !== 1 ? [q[0], q[1], pr.a[2] + (q[2] - pr.a[2]) / pr.sz] : q, pr.a, pr.b) : 0, q);
-      }
-    }
-    regions[v] = reg;
-  }
-
-  {
-    const nbr: number[][] = Array.from({ length: vc }, () => []);
-    for (let i = 0; i < index.length; i += 3)
-      for (let k = 0; k < 3; k++) {
-        const a = index[i + k];
-        const c = index[i + ((k + 1) % 3)];
-        nbr[a].push(c);
-        nbr[c].push(a);
-      }
-    const counts = new Uint16Array(8);
-    for (let pass = 0; pass < 3; pass++) {
-      const next = regions.slice();
-      for (let v = 0; v < vc; v++) {
-        counts.fill(0);
-        counts[regions[v]] += 2;
-        for (const u of nbr[v]) counts[regions[u]]++;
-        let bestR = regions[v];
-        for (let r = 0; r < 8; r++) if (counts[r] > counts[bestR]) bestR = r;
-        next[v] = bestR;
-      }
-      regions.set(next);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  geo.setIndex(index);
-  const out = { geo, regions };
-  cache.set(key, out);
-  return out;
+  return { pos, index };
 }
 
 /** Bone segments in the bind pose, for skin weights. */
@@ -573,7 +585,7 @@ export function createBody(look: BodyLook, root: THREE.Object3D, j: BodyJoints):
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
 
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0 });
+  const mat = addRim(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0 }), 0xfff2e2, 0.14);
   const mesh = new THREE.SkinnedMesh(geo, mat);
   mesh.castShadow = true;
   mesh.receiveShadow = true;

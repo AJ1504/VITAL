@@ -17,6 +17,7 @@ import type { FaultReason } from '../../shared/src/rules/pickleball.ts';
 import { AudioEngine } from './audio/audio.ts';
 import { InputManager } from './input/input.ts';
 import { Crowd } from './scene/crowd.ts';
+import { SwingTrail } from './scene/fx.ts';
 import { MEMBERS, memberById } from './scene/members.ts';
 import { Pal, type PalLook } from './scene/pal.ts';
 import { PALETTE } from './scene/palette.ts';
@@ -107,6 +108,7 @@ export class Game {
   private envMap: THREE.Texture;
   private ais: (AiController | null)[] = [null, null];
   private pals: [Pal, Pal];
+  private swingTrails: [SwingTrail, SwingTrail] = [new SwingTrail(0xfff6dc), new SwingTrail(0xfff6dc)];
   private dj: Pal;
   private bartender: Pal;
   private waiter: Pal;
@@ -188,6 +190,7 @@ export class Game {
     const opp = this.opponentFor(me.id);
     this.pals = [new Pal(me.look, this.shadowTex), new Pal(opp.look, this.shadowTex)];
     for (const p of this.pals) this.scene.add(p.root);
+    for (const t of this.swingTrails) this.scene.add(t.mesh);
 
     this.dj = new Pal({ skin: 0xc98e66, hair: 0x2b1d14, hairStyle: 'short', headwear: 'headphones', headwearColor: 0x2f2b28, top: 'tee', shirt: 0xf6efe0, trim: 0x8fab83, shorts: 0x8fab83, bottom: 'shorts', shoes: 0xfbf8f2, build: 0.55 }, this.shadowTex);
     this.dj.paddle.visible = false;
@@ -797,6 +800,9 @@ export class Game {
         } else pal.anticipate('fh', 0);
         pal.lookAt(this.phase === 'intro' ? this.camera.position : ballWorld);
         pal.update(pdt, { x: p.pos.x, z: p.pos.z, yaw: side === 0 ? 0 : Math.PI, speed: Math.hypot(p.vel.x, p.vel.z), vx: p.vel.x, vz: p.vel.z });
+        const act = pal.currentAction;
+        pal.root.updateMatrixWorld(true);
+        this.swingTrails[side].update(pal.paddle, act === 'swing_fh' || act === 'swing_bh' || act === 'serve');
       }
       this.cue.position.set(sim.players[0].pos.x, 0.14, sim.players[0].pos.z);
 

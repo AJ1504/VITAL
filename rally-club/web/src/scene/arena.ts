@@ -7,6 +7,8 @@
 import * as THREE from 'three';
 import { type Court, netHeightAt } from '../../../shared/src/court.ts';
 import { Batches, M4, css, drawCrest, drawLaurel, drawLogo, liveTex, merge, roundedRectSamples, roundedRectShape, spacedText, std } from './kit.ts';
+import { ISLAND_R, buildIsland } from './island.ts';
+import { grainTex, pavingTex, plasterTex, woodTex, worldBox } from './surfaces.ts';
 import { COURTS, type CourtId, type CourtTheme, RESORT } from './themes.ts';
 import type { Venue } from './venue.ts';
 
@@ -32,8 +34,8 @@ export interface ResortExtras {
 }
 
 const SKY: Record<CourtTheme['time'], { stops: [number, string][]; sun: number; sunI: number; sunPos: [number, number, number]; hemiSky: number; hemiGround: number; hemiI: number; fog: number; exposure: number }> = {
-  morning: { stops: [[0, '#7fb8e6'], [0.45, '#bfdcf2'], [0.52, '#f6f0e4'], [1, '#f2ead9']], sun: 0xfff2dc, sunI: 2.7, sunPos: [-14, 26, 10], hemiSky: 0xeaf4ff, hemiGround: 0xe6dbc6, hemiI: 1.3, fog: 0xefeee6, exposure: 1.0 },
-  golden: { stops: [[0, '#8fb6dc'], [0.36, '#f3d2bb'], [0.5, '#ffd6ab'], [1, '#f4dcc4']], sun: 0xffe0bf, sunI: 2.8, sunPos: [20, 13, -7], hemiSky: 0xfff1e6, hemiGround: 0xeed8c6, hemiI: 1.45, fog: 0xf6dcc6, exposure: 1.04 },
+  morning: { stops: [[0, '#3d97e6'], [0.3, '#7cc0f0'], [0.47, '#d7eefa'], [0.5, '#eef8fb'], [1, '#eef8fb']], sun: 0xfff2dc, sunI: 2.7, sunPos: [-14, 26, 10], hemiSky: 0xeaf4ff, hemiGround: 0xe6dbc6, hemiI: 1.3, fog: 0xefeee6, exposure: 1.0 },
+  golden: { stops: [[0, '#5fa2dc'], [0.3, '#a9cde6'], [0.42, '#f8d9bd'], [0.5, '#ffd3a1'], [1, '#ffd3a1']], sun: 0xffe0bf, sunI: 2.8, sunPos: [20, 13, -7], hemiSky: 0xfff1e6, hemiGround: 0xeed8c6, hemiI: 1.45, fog: 0xf6dcc6, exposure: 1.04 },
   dusk: { stops: [[0, '#5d6aa8'], [0.32, '#b39bd2'], [0.47, '#ffc6a8'], [1, '#e9d6e2']], sun: 0xffbfa6, sunI: 1.7, sunPos: [-18, 8, -12], hemiSky: 0xe6e0f6, hemiGround: 0xe8d6dc, hemiI: 1.35, fog: 0xd9c6dc, exposure: 1.1 },
 };
 
@@ -56,10 +58,10 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
   const warm = T.time !== 'morning';
 
   const mat = {
-    stone: std(T.stone, { roughness: 0.92 }),
-    stoneShade: std(new THREE.Color(T.stone).multiplyScalar(0.93).getHex(), { roughness: 0.95 }),
-    paving: std(T.paving, { roughness: 0.95 }),
-    wood: std(RESORT.wood, { roughness: 0.7 }),
+    stone: std(T.stone, { roughness: 0.92, map: plasterTex(2.5) }),
+    stoneShade: std(new THREE.Color(T.stone).multiplyScalar(0.93).getHex(), { roughness: 0.95, map: plasterTex(2.5) }),
+    paving: std(T.paving, { roughness: 0.95, map: pavingTex(1.8) }),
+    wood: std(RESORT.wood, { roughness: 0.7, map: woodTex(1.2) }),
     dark: std(0x2b2a2e, { roughness: 0.45 }),
     white: std(0xfbf8f3, { roughness: 0.6 }),
     fabric: std(RESORT.fabric, { roughness: 0.9, side: THREE.DoubleSide }),
@@ -77,30 +79,27 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
     g.fillStyle = grd;
     g.fillRect(0, 0, w, h);
   });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(420, 32, 16), new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, depthWrite: false, fog: false }));
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(860, 32, 16), new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, depthWrite: false, fog: false }));
+  sky.renderOrder = -10;
   root.add(sky);
-  // Soft clouds as a few billboards high in the sky.
-  const cloudTex = liveTex(256, 128, (g) => {
-    for (let k = 0; k < 9; k++) {
-      const x = 40 + k * 22 + (k % 3) * 6;
-      const y = 70 - Math.sin(k * 0.9) * 18;
-      const r = 26 + (k % 4) * 9;
-      const cg = g.createRadialGradient(x, y, 0, x, y, r);
-      cg.addColorStop(0, dusk ? 'rgba(255,214,206,0.85)' : 'rgba(255,255,255,0.85)');
-      cg.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = cg;
-      g.fillRect(x - r, y - r, r * 2, r * 2);
-    }
+  const sunDir = new THREE.Vector3(...L.sunPos).normalize();
+  const glowTex = liveTex(128, 128, (g, w, h) => {
+    const grd = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    grd.addColorStop(0, 'rgba(255,252,235,1)');
+    grd.addColorStop(0.12, 'rgba(255,246,215,0.95)');
+    grd.addColorStop(0.35, 'rgba(255,230,180,0.25)');
+    grd.addColorStop(1, 'rgba(255,220,170,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, w, h);
   });
-  for (let k = 0; k < 7; k++) {
-    const c = new THREE.Mesh(new THREE.PlaneGeometry(90, 45), new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, depthWrite: false, fog: false, opacity: 0.8 }));
-    const a = (k / 7) * Math.PI * 2 + 0.4;
-    c.position.set(Math.cos(a) * 260, 70 + (k % 3) * 18, Math.sin(a) * 260);
-    c.lookAt(0, c.position.y, 0);
-    root.add(c);
-  }
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+  sunGlow.position.copy(sunDir).multiplyScalar(780);
+  sunGlow.position.y = Math.max(sunGlow.position.y, 60);
+  sunGlow.scale.setScalar(dusk ? 260 : 190);
+  sunGlow.renderOrder = -9;
+  root.add(sunGlow);
   scene.background = new THREE.Color(L.stops[1][1]);
-  scene.fog = new THREE.Fog(L.fog, 80, 300);
+  scene.fog = new THREE.Fog(L.fog, 140, 760);
   const hemi = new THREE.HemisphereLight(L.hemiSky, L.hemiGround, L.hemiI);
   root.add(hemi);
   const sun = new THREE.DirectionalLight(L.sun, L.sunI);
@@ -114,28 +113,22 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
   root.add(sun, sun.target);
 
   // ---------------------------------------------------------------- ground, plaza, distant land
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(220, 48), std(T.trees === 'palm' ? 0xa9c98a : RESORT.lawn, { roughness: 1 }));
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.03;
-  ground.receiveShadow = true;
-  root.add(ground);
+  const island = buildIsland(
+    root,
+    { skyTop: L.stops[0][1], horizon: L.stops[2][1], sunDir, sunColor: L.sun, grass: T.trees === 'palm' ? 0x9cd17c : 0xa5cf86, dusk },
+    new THREE.Color(L.fog),
+    rnd,
+  );
   const plaza = new THREE.Mesh(new THREE.ShapeGeometry(roundedRectShape(SA + 12, SB + 13, SR + 9), 12), mat.paving);
   plaza.rotation.x = -Math.PI / 2;
   plaza.position.y = -0.01;
   plaza.receiveShadow = true;
   root.add(plaza);
-  const hillMat = std(RESORT.hills, { roughness: 1 });
-  const farMat = std(RESORT.hillsFar, { roughness: 1 });
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2;
-    const r = 150 + (i % 3) * 35;
-    B.add(i % 2 ? hillMat : farMat, new THREE.SphereGeometry(38 + (i % 4) * 12, 16, 8), new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * r, -16, Math.sin(a) * r), new THREE.Quaternion(), new THREE.Vector3(1.7, 0.55, 1)), false);
-  }
 
   // ---------------------------------------------------------------- court + surround
-  const surroundMat = std(T.surround, { roughness: T.gloss ? 0.25 : 0.88 });
-  const courtMat = std(T.court, { roughness: T.gloss ? 0.12 : 0.85 });
-  const kitchenMat = std(T.kitchen, { roughness: T.gloss ? 0.12 : 0.85 });
+  const surroundMat = std(T.surround, { roughness: T.gloss ? 0.25 : 0.88, map: grainTex(1.5) });
+  const courtMat = std(T.court, { roughness: T.gloss ? 0.12 : 0.85, map: grainTex(1.5) });
+  const kitchenMat = std(T.kitchen, { roughness: T.gloss ? 0.12 : 0.85, map: grainTex(1.5) });
   if (T.gloss) reflective.push(surroundMat, courtMat, kitchenMat);
   const lineMat = std(T.line, { roughness: 0.6 });
   // Plinth (a soft white rim) under the surround.
@@ -148,8 +141,8 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
   const cw = court.width;
   const cl = court.length;
   if (T.alley) B.add(std(T.alley, { roughness: 0.85 }), new THREE.BoxGeometry(cw + 3.2, 0.02, cl + 0.4), M4(0, 0.112, 0), false);
-  B.add(courtMat, new THREE.BoxGeometry(cw, 0.02, cl), M4(0, 0.12, 0), false);
-  for (const s of [1, -1]) B.add(kitchenMat, new THREE.BoxGeometry(cw, 0.022, court.nvzDepth), M4(0, 0.123, (s * court.nvzDepth) / 2), false);
+  B.add(courtMat, worldBox(cw, 0.02, cl), M4(0, 0.12, 0), false);
+  for (const s of [1, -1]) B.add(kitchenMat, worldBox(cw, 0.022, court.nvzDepth), M4(0, 0.123, (s * court.nvzDepth) / 2), false);
   const Y = 0.136;
   const lw = 0.05;
   const line = (w: number, d: number, x: number, z: number) => B.add(lineMat, new THREE.BoxGeometry(w, 0.006, d), M4(x, Y, z), false);
@@ -309,7 +302,7 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
       for (const p of samples) {
         if (inGap(p.x, p.z)) continue;
         const yaw = yawOf(p.nx, p.nz);
-        B.add(k % 2 ? mat.stone : mat.stoneShade, new THREE.BoxGeometry(0.53, h, rowD), M4(p.x, h / 2, p.z, yaw), k === rows - 1);
+        B.add(k % 2 ? mat.stone : mat.stoneShade, worldBox(0.53, h, rowD), M4(p.x, h / 2, p.z, yaw), k === rows - 1);
         // Warm LED strip on each riser edge.
         if (warm || T.seating === 'steps') glowStrips.push(M4(p.x - p.nx * (rowD / 2 - 0.02), h - 0.02, p.z - p.nz * (rowD / 2 - 0.02), yaw, [0.53, 0.025, 0.03]));
       }
@@ -337,7 +330,7 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
     for (const p of par) {
       if (inGap(p.x, p.z)) continue;
       const yaw = yawOf(p.nx, p.nz);
-      B.add(mat.stone, new THREE.BoxGeometry(0.64, hTop + 0.9, 0.6), M4(p.x, (hTop + 0.9) / 2, p.z, yaw));
+      B.add(mat.stone, worldBox(0.64, hTop + 0.9, 0.6), M4(p.x, (hTop + 0.9) / 2, p.z, yaw));
       glowStrips.push(M4(p.x - p.nx * 0.31, hTop + 0.75, p.z - p.nz * 0.31, yaw, [0.64, 0.03, 0.03]));
       if (rnd() < 0.55) {
         for (let q = 0; q < 2; q++) bougainvillea.push(M4(p.x + (rnd() - 0.5) * 0.4, hTop + 1.0 + rnd() * 0.35, p.z + (rnd() - 0.5) * 0.3, rnd() * 6, 0.8 + rnd() * 0.6));
@@ -751,8 +744,8 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
   // ---------------------------------------------------------------- trees around the grounds
   for (let i = 0; i < 46; i++) {
     const a = (i / 46) * Math.PI * 2 + rnd() * 0.1;
-    const rx = OA + 6 + rnd() * 10;
-    const rz = OB + 6 + rnd() * 10;
+    const rx = Math.min(OA + 6 + rnd() * 14, ISLAND_R - 6);
+    const rz = Math.min(OB + 6 + rnd() * 14, ISLAND_R - 6);
     const x = Math.cos(a) * rx;
     const z = Math.sin(a) * rz;
     const list = T.trees === 'palm' ? (i % 4 === 0 ? olives : palms) : i % 3 === 0 ? cypress : olives;
@@ -840,6 +833,7 @@ export function buildArena(scene: THREE.Scene, court: Court, id: CourtId): Venue
 
   // Disco ball, spot beams, pendant pulse.
   const tick = (t: number, beat: number) => {
+    island.tick(t);
     for (const s of spinners) s.rotation.y = t * 0.6;
     beams.forEach((b, i) => {
       b.rotation.z = Math.sin(t * 0.8 + i * 0.9) * 0.45;

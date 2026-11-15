@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { createBody } from './body.ts';
+import { addRim } from './surfaces.ts';
 
 export type HairStyle = 'quiff' | 'ponytail' | 'wavy' | 'afro' | 'bun' | 'curly' | 'short' | 'bob' | 'spiky' | 'bald';
 export type Headwear = 'none' | 'visor' | 'headband' | 'cap' | 'panama' | 'headphones';
@@ -322,7 +323,7 @@ function mat(c: number, rough = 0.7): THREE.MeshStandardMaterial {
   const k = `${c}|${rough}`;
   let m = matCache.get(k);
   if (!m) {
-    m = new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0 });
+    m = addRim(new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0 }), 0xfff2e2, 0.14);
     matCache.set(k, m);
   }
   return m;
@@ -699,7 +700,8 @@ export class Pal {
     let dy = st.yaw - this.root.rotation.y;
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     this.root.rotation.y += dy * Math.min(1, dt * 10);
-    this.phase += dt * (5.5 + st.speed * 2.4);
+    // Stride-locked gait: the cycle advances with distance covered, so feet plant instead of sliding.
+    this.phase += dt * (st.speed > 0.1 ? 1.4 + st.speed * 3.7 : 5.5);
 
     const base = mix(STAND, this.serving ? SERVE_READY : READY, this.ready, this.scratch);
     const run = Math.min(1, st.speed / 3.0);
@@ -726,6 +728,11 @@ export class Pal {
       base.spine[0] -= 0.1 * fwd;
       base.spine[2] += c * 0.05 * run;
       base.shL[0] += -s * 0.7 * fwd;
+      base.elL += 0.45 * fwd;
+      // Counter-rotate the torso against the legs and keep the head steady (athletic run).
+      base.spine[1] += -s * 0.16 * fwd;
+      base.head[1] += s * 0.12 * fwd;
+      base.spine[0] -= 0.06 * fwd;
       if (this.anticipation < 0.2 && this.action === 'none') base.shR[0] += s * 0.35 * fwd;
     } else if (this.ready > 0.5 && this.action === 'none') {
       const b = Math.sin(this.phase * 0.9);
