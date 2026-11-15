@@ -26,10 +26,12 @@ Lines in quotes are the script. Where a line refers to a player, record the name
 
 Arena welcomes (one per arena, played instead of the general intro when that arena is chosen):
 
-4. `vo_arena_coral`: "Golden hour at the Coral Club — palms, a disco ball, and a crowd ready to party."
-5. `vo_arena_terrace`: "A beautiful morning on the Mint Terrace. Lemonade's poured, let's begin."
-6. `vo_arena_lavender`: "Dusk at the Lavender Amphitheatre — the lights are up and the steps are full."
-7. `vo_arena_rose`: "Evening in the Rosé Garden. Sails up, bougainvillea out — what a night for it."
+4. `vo_arena_lavender`: "Golden hour at Lavender Social — the amphitheatre's full and the DJ's warming up."
+5. `vo_arena_lemon`: "A bright morning in the Lemon Grove. Lemonade's poured — let's begin."
+6. `vo_arena_azure`: "Sea breeze at the Azure Riviera. What a view for pickleball."
+7. `vo_arena_terracotta`: "Sunset in the Terracotta courtyard — the arches are glowing."
+8. `vo_arena_pistachio`: "Welcome to the Pistachio Pavilion — sculptures, sunshine and a full house."
+9. `vo_arena_coral`: "Lights up at Coral Disco! The ball's spinning — let's party."
 
 ### `vo_serve_fault_*` — serve misses
 1. "Oh, the serve doesn't find the box."
@@ -189,10 +191,12 @@ Each arena has its own resident DJ sound. Deliver a seamless loop (16 or 32 bars
 
 | Arena | Style | BPM | Files |
 | --- | --- | --- | --- |
-| Coral Club (golden hour) | Disco house / nu-disco, warm bass, strings | 120 | `music_coral_loop`, `music_coral_stinger_point`, `music_coral_stinger_win` |
-| Mint Terrace (morning) | Light Balearic / bossa house, acoustic guitar, shaker | 110 | `music_terrace_loop` + stingers |
-| Lavender Amphitheatre (dusk) | Deep / melodic house, pads, soft keys | 118 | `music_lavender_loop` + stingers |
-| Rosé Garden (evening) | Funky house, Rhodes, horns | 122 | `music_rose_loop` + stingers |
+| Lavender Social | Melodic / deep house, soft pads | 118 | `music_lavender_loop`, `music_lavender_stinger_point`, `music_lavender_stinger_win` |
+| Lemon Grove | Balearic / bossa house, acoustic guitar, shaker | 110 | `music_lemon_loop` + stingers |
+| Azure Riviera | Sunny tropical house, steel pan, marimba | 116 | `music_azure_loop` + stingers |
+| Terracotta Sunset | Mediterranean lounge, Spanish guitar, warm bass | 112 | `music_terracotta_loop` + stingers |
+| Pistachio Pavilion | Bright French-touch house, filtered chords | 120 | `music_pistachio_loop` + stingers |
+| Coral Disco | Nu-disco / funky house, strings, horns | 122 | `music_coral_loop` + stingers |
 | Menu | Lounge version of the Vital theme | 100 | `music_menu_loop` |
 
 Jingles (short, 1–3 s, bright and toy-like):

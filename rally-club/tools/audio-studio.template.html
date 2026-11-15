@@ -1,0 +1,687 @@
+<title>Vital Voice Booth</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&family=Nunito:wght@500;600;700;800&display=swap">
+<style>
+/* Layout: one phone-width column — the next line to record on top, the full sortable script below. */
+:root {
+  --bg: #f6f1e8;
+  --card: #fffcf6;
+  --ink: #213a2b;
+  --soft: #6f7d72;
+  --line: rgba(33, 58, 43, 0.12);
+  --accent: #2f6b4a;
+  --accent-ink: #ffffff;
+  --rec: #d9534f;
+  --ok: #3f8f5f;
+  --chip-vo: #e7dcf6;
+  --chip-ump: #dcebf6;
+  --chip-name: #f6e2c8;
+  --chip-sfx: #dff0e0;
+  --chip-crowd: #f6dbe2;
+  --chip-music: #f4f0c9;
+  --display: "Josefin Sans", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Nunito", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17201b; --card: #1f2b24; --ink: #eef3ec; --soft: #a3b2a7; --line: rgba(238, 243, 236, 0.12);
+    --accent: #8fd1a8; --accent-ink: #10231a; --rec: #ff7a72; --ok: #8fd1a8;
+    --chip-vo: #3a3350; --chip-ump: #26394a; --chip-name: #4a3a26; --chip-sfx: #26402d; --chip-crowd: #4a2a33; --chip-music: #45431f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17201b; --card: #1f2b24; --ink: #eef3ec; --soft: #a3b2a7; --line: rgba(238, 243, 236, 0.12);
+  --accent: #8fd1a8; --accent-ink: #10231a; --rec: #ff7a72; --ok: #8fd1a8;
+  --chip-vo: #3a3350; --chip-ump: #26394a; --chip-name: #4a3a26; --chip-sfx: #26402d; --chip-crowd: #4a2a33; --chip-music: #45431f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 18px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.brand img { width: 108px; height: auto; }
+:root[data-theme="dark"] .brand img { filter: invert(1) brightness(1.6); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .brand img { filter: invert(1) brightness(1.6); } }
+.eyebrow { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--soft); }
+.progress { text-align: right; }
+.progress b { font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width 0.4s ease; }
+.notice { font-size: 13px; color: var(--soft); background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+.notice b { color: var(--ink); }
+.next { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 30px rgba(33, 58, 43, 0.08); }
+.next .line { font-size: clamp(20px, 5.4vw, 26px); font-weight: 800; line-height: 1.25; text-wrap: balance; }
+.next .dir { font-size: 13px; color: var(--soft); }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 700; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; padding: 4px 9px; border-radius: 99px; background: var(--chip-vo); color: var(--ink); }
+.chip[data-g="umpire"] { background: var(--chip-ump); }
+.chip[data-g="names"] { background: var(--chip-name); }
+.chip[data-g="sfx"] { background: var(--chip-sfx); }
+.chip[data-g="crowd"] { background: var(--chip-crowd); }
+.chip[data-g="music"] { background: var(--chip-music); }
+.key { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; color: var(--soft); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: inherit; cursor: pointer; border: 0; border-radius: 999px; padding: 10px 16px; font-weight: 800; background: var(--line); color: var(--ink); min-height: 44px; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button.rec { background: var(--rec); color: #fff; display: inline-flex; align-items: center; gap: 8px; }
+button.rec::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+button.primary { background: var(--accent); color: var(--accent-ink); }
+button.ghost { background: transparent; border: 1.5px solid var(--line); }
+button.small { padding: 6px 12px; min-height: 34px; font-size: 13px; }
+button:disabled { opacity: 0.5; cursor: default; }
+.status { font-size: 13px; color: var(--soft); min-height: 1.2em; }
+.status.ok { color: var(--ok); font-weight: 700; }
+.status.err { color: var(--rec); font-weight: 700; }
+canvas.wave { width: 100%; height: 46px; display: block; border-radius: 10px; background: var(--bg); }
+.filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.filters button { flex: none; padding: 8px 12px; min-height: 36px; font-size: 13px; background: var(--card); border: 1px solid var(--line); }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; grid-template-columns: 14px 1fr; gap: 4px 10px; align-items: start; }
+.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--line); box-shadow: inset 0 0 0 1.5px var(--soft); }
+.item.done .dot { background: var(--ok); box-shadow: none; }
+.item .body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.item .text { font-weight: 700; }
+.takes { display: flex; flex-wrap: wrap; gap: 6px; }
+.take { display: inline-flex; align-items: center; gap: 4px; background: var(--bg); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.take button { min-height: 28px; padding: 3px 9px; font-size: 12px; background: transparent; }
+.take.keep { outline: 2px solid var(--ok); }
+.drop { border: 2px dashed var(--line); border-radius: 18px; padding: 16px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.drop p { margin: 0; font-size: 13px; color: var(--soft); max-width: 46ch; }
+.unsorted select { font: inherit; padding: 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); max-width: 100%; }
+h2 { font-family: var(--display); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; margin: 8px 0 0; color: var(--soft); }
+input[type="file"] { display: none; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <img alt="Vital" src="data:image/png;base64,__LOGO__">
+      <span class="eyebrow">Voice booth · game audio</span>
+    </div>
+    <div class="progress">
+      <b id="count">0 / 0</b>
+      <div class="eyebrow">recorded</div>
+    </div>
+  </header>
+  <div class="bar" aria-hidden="true"><i id="barfill"></i></div>
+  <p class="notice" id="notice">Tap <b>Record</b>: your phone opens its camera or recorder. Read the line, stop, and tap <b>Use</b>. The booth keeps only the sound, trims the silence, evens the volume and files it under the right line, ready for Claude.</p>
+
+  <section class="next" id="next" aria-live="polite">
+    <div><span class="chip" id="next-chip">Commentary</span> <span class="key" id="next-key"></span></div>
+    <div class="line" id="next-line">Loading the script…</div>
+    <div class="dir" id="next-dir"></div>
+    <canvas class="wave" id="next-wave" width="600" height="92" hidden></canvas>
+    <div class="actions">
+      <button class="rec" id="next-rec" type="button">Record</button>
+      <button class="ghost" id="next-up" type="button">Upload a file</button>
+      <button class="ghost" id="next-play" type="button" hidden>Play</button>
+      <button class="ghost" id="next-skip" type="button">Skip</button>
+    </div>
+    <div class="status" id="next-status"></div>
+  </section>
+
+  <section class="drop" id="drop">
+    <strong>Already have files?</strong>
+    <p>Drop or pick many at once. Files named like the script (for example <span class="key">sfx_net_2.wav</span> or <span class="key">crowd_cheer_1.m4a</span>) sort themselves; anything else waits below for you to assign.</p>
+    <button class="primary" id="bulk-btn" type="button">Choose files</button>
+    <div class="status" id="bulk-status"></div>
+  </section>
+
+  <section id="unsorted-wrap" class="unsorted" hidden>
+    <h2>Needs a home</h2>
+    <div class="list" id="unsorted"></div>
+  </section>
+
+  <h2>The full script</h2>
+  <div class="filters" id="filters" role="toolbar" aria-label="Filter by section"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<input type="file" id="cap-input" accept="video/*" capture="user">
+<input type="file" id="file-input" accept="audio/*,video/*">
+<input type="file" id="bulk-input" accept="audio/*,video/*" multiple>
+
+<script>
+(() => {
+  // ---------------------------------------------------------------- the script (from docs/AUDIO_SCRIPT.md)
+  const ITEMS = [];
+  const add = (g, k, t, d, opt = {}) => ITEMS.push({ g, k, t, d, stereo: !!opt.stereo, upload: !!opt.upload });
+  const VO = 'Warm, witty, sunny club broadcaster.';
+  const vo = (s, lines, d = VO) => lines.forEach((t, i) => add('commentary', `vo_${s}_${i + 1}`, t, d));
+  vo('intro', ["Welcome to the Vital Pickleball Club! A full house, the DJ is rolling — let's play some pickleball.", 'The sun is out, the music is warm, and the court is ready. Players, the floor is yours.', "What a setting for pickleball. Good luck to both — let's play!"], 'Match welcome. Big smile, unhurried.');
+  [
+    ['lavender', "Golden hour at Lavender Social — the amphitheatre's full and the DJ's warming up."],
+    ['lemon', "A bright morning in the Lemon Grove. Lemonade's poured — let's begin."],
+    ['azure', 'Sea breeze at the Azure Riviera. What a view for pickleball.'],
+    ['terracotta', 'Sunset in the Terracotta courtyard — the arches are glowing.'],
+    ['pistachio', 'Welcome to the Pistachio Pavilion — sculptures, sunshine and a full house.'],
+    ['coral', "Lights up at Coral Disco! The ball's spinning — let's party."],
+  ].forEach(([a, t]) => add('commentary', `vo_arena_${a}`, t, 'Arena welcome, plays before the first serve.'));
+  vo('serve_fault', ["Oh, the serve doesn't find the box.", 'Fault on the serve — that one wandered.', 'Not the serve they were looking for.']);
+  vo('ace', ['Unreturnable! Served up and delivered.', 'Ace! The terrace loved that one.', 'Straight past them — a serve with a postmark.'], 'Excited.');
+  vo('long_rally', ['Listen to this crowd — what a rally!', 'Neither of them will blink!', 'Back and forth, back and forth… someone has to crack.'], 'Rising excitement.');
+  vo('net', ['Into the tape.', 'The net says no.', 'Caught the net — so close.']);
+  vo('out', ['Just long!', 'Wide — no doubt about that one.', 'That one sailed off into the sunset.']);
+  vo('kitchen', ["Foot in the kitchen! You can't volley from there.", 'Kitchen violation — the cardinal sin.', 'Out of the kitchen, please! Fault.']);
+  vo('two_bounce', ['Too eager — it had to bounce first!', 'Two-bounce rule! Patience is a virtue.', 'That one needed a bounce. Fault.']);
+  vo('point', ['…takes the point.', '…lovely stuff.', '…clean finish.', '…makes it look easy.'], 'Plays right after a player name. Start as if mid-sentence.');
+  vo('side_out', ['Side out.', 'Serve changes hands.', 'Over to the other side to serve.'], 'Calm.');
+  vo('game_point', ['Game point.', 'One point from the match — the crowd is on its feet.', 'Here it is… game point.'], 'Hushed, tense.');
+  vo('save', ['Saved! Not done yet!', 'Game point erased — what nerve!', 'Fought off! We play on.'], 'Excited.');
+  vo('comeback', ['From way back — what a comeback!', 'They were buried, and they dug all the way out!'], 'Big.');
+  vo('win', ['…takes the match! Cue the confetti!', '…wins it! What an evening!', 'Game, set and sunset!'], 'Biggest energy of the match. First two follow a name.');
+  vo('perfect', ['Sweet spot!', 'Pure contact.', 'Oh, that sounded perfect.'], 'Short and quick.');
+  vo('practice', ['Lovely rhythm!', 'Grooving now.', 'The ball machine is running out of ideas!'], 'Encouraging coach.');
+  vo('lob', ['Up and over!', 'A lob — will it land?']);
+  vo('dink', ['Soft hands at the net.', 'Delicate dink.'], 'Gentle.');
+  vo('smash', ['Oh, put away!', 'That was a smash!'], 'Punchy.');
+  vo('close', ['Ooh, inches!', 'Right on the line!']);
+
+  const UMP = 'Calm, precise, a little formal. Leave a short gap after.';
+  const nums = ['Love', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen'];
+  nums.forEach((n, i) => add('umpire', `ump_num_${i}`, `${n}.`, UMP));
+  add('umpire', 'ump_num_0_alt', 'Zero.', UMP);
+  [['fault', 'Fault.'], ['out', 'Out.'], ['net', 'Net.'], ['kitchen', 'Kitchen.'], ['side_out', 'Side out.'], ['let', 'Let. Replay the serve.'], ['game', 'Game.'], ['match', 'Game, set and match.'], ['quiet', 'Quiet, please.'], ['play', 'Play.']].forEach(([k, t]) => add('umpire', `ump_${k}`, t, UMP));
+
+  ['Theo', 'Lila', 'Jasper', 'Marcus', 'Mei', 'Zara'].forEach((n) => {
+    add('names', `name_${n.toLowerCase()}_n`, `${n}.`, 'Neutral read, as the commentator.');
+    add('names', `name_${n.toLowerCase()}_x`, `${n}!`, 'Excited read, as the commentator.');
+  });
+  add('names', 'name_you_n', 'You.', 'Neutral read (for the default player name).');
+  add('names', 'name_you_x', 'You!', 'Excited read.');
+
+  const sfx = (k, n, t, d, opt) => { for (let i = 1; i <= n; i++) add('sfx', n > 1 ? `sfx_${k}_${i}` : `sfx_${k}`, t, d, opt); };
+  sfx('paddle_soft', 4, 'Paddle on ball: soft dink', 'Tap a paddle gently against a pickleball close to the mic. Short and hollow.');
+  sfx('paddle_med', 4, 'Paddle on ball: normal drive', 'A firm hit. Keep the mic 30 cm away.');
+  sfx('paddle_hard', 4, 'Paddle on ball: smash', 'Hard crack. Back the mic off so it does not distort.');
+  sfx('paddle_perfect', 1, 'Sweet-spot hit', 'Your cleanest hit. A tiny bright ding layered on top is a bonus.');
+  sfx('bounce_court', 4, 'Ball bounce on a hard court', 'Drop a pickleball on concrete or a hard floor.');
+  sfx('bounce_soft', 2, 'Bounce on grass or carpet', 'Duller thud.');
+  sfx('net', 3, 'Ball into the net', 'Throw a ball into any mesh or netting: the rattle matters.');
+  sfx('net_cord', 1, 'Ball clips the net tape and rolls over', '');
+  sfx('post', 1, 'Ball hits a metal post', '');
+  sfx('footstep_court', 6, 'Sneaker steps / quick shuffles', 'Trainers on a hard floor. Two of the six with a light squeak.');
+  sfx('shoe_squeak', 3, 'Sharp sneaker squeak on stopping', '');
+  sfx('swing_whoosh', 3, 'Paddle whoosh through the air', 'Swing fast past the mic, no hit.');
+  sfx('ball_machine', 2, 'Practice machine launch', 'Soft pneumatic thup. A pump or a clap into a cupped hand works.');
+  sfx('ui_click', 1, 'Menu tap', 'Soft wooden click.');
+  sfx('ui_select', 1, 'Choose an arena or member', 'Light bell or glass ting.');
+  sfx('ui_back', 1, 'Back / cancel', 'Softer, lower click.');
+  sfx('confetti', 1, 'Confetti pop and flutter', 'Party popper, or a bag pop then shaken paper.', { stereo: true });
+  sfx('disco_sparkle', 1, 'Tiny shimmer', 'Optional. Wind chimes or a brushed glass rim.');
+  sfx('glass_clink', 3, 'Drinks clinking at the bar', '');
+  sfx('seagull', 3, 'Distant gulls', 'Optional. Record at the coast or upload a free CC0 clip.', { upload: true });
+  sfx('waves_loop', 1, 'Gentle shore waves, 30–60 s loop', 'Stereo, seamless. Best uploaded.', { stereo: true, upload: true });
+  sfx('wind_palms_loop', 1, 'Breeze through palms, 30–60 s loop', 'Stereo, seamless. Best uploaded.', { stereo: true, upload: true });
+
+  const crowd = (k, n, t, d) => { for (let i = 1; i <= n; i++) add('crowd', n > 1 ? `crowd_${k}_${i}` : `crowd_${k}`, t, d, { stereo: true }); };
+  crowd('bed_idle_loop', 1, 'Murmur, chatter, glasses: 60 s loop', 'Record a busy café or party, or upload.');
+  crowd('bed_tense_loop', 1, 'Hushed, expectant crowd: 30 s loop', '');
+  crowd('applause_short', 3, 'Polite applause, 2–3 s', 'A few friends clapping is enough.');
+  crowd('applause_big', 2, 'Big applause, 4–5 s', '');
+  crowd('cheer', 3, 'Cheer and whoops, 2–4 s', '');
+  crowd('ooh', 3, '"Ooooh!" for a near miss', '');
+  crowd('gasp', 2, 'Sharp gasp', '');
+  crowd('aww', 2, 'Disappointed "awww"', '');
+  crowd('laugh', 2, 'Warm laugh', '');
+  crowd('ovation', 1, 'Standing ovation, 8–10 s', '');
+  crowd('chant_vital', 1, '"Vi-tal! Vi-tal!" clap-chant, 6–8 s', 'Optional.');
+
+  const mus = (k, t, d) => add('music', k, t, d, { stereo: true, upload: true });
+  [['lavender', 'Lavender Social: melodic / deep house, 118 BPM'], ['lemon', 'Lemon Grove: Balearic / bossa house, 110 BPM'], ['azure', 'Azure Riviera: sunny tropical house, 116 BPM'], ['terracotta', 'Terracotta Sunset: Mediterranean lounge, 112 BPM'], ['pistachio', 'Pistachio Pavilion: French-touch house, 120 BPM'], ['coral', 'Coral Disco: nu-disco / funky house, 122 BPM']].forEach(([a, t]) => {
+    mus(`music_${a}_loop`, t, 'Seamless 16 or 32 bar loop. Upload the file.');
+    mus(`music_${a}_stinger_point`, `${t.split(':')[0]}: point stinger`, '1–2 s.');
+    mus(`music_${a}_stinger_win`, `${t.split(':')[0]}: match-win stinger`, '3–5 s.');
+  });
+  mus('music_menu_loop', 'Menu: lounge version of the Vital theme, 100 BPM', 'Seamless loop.');
+  [['ready', 'Before the serve'], ['point_win', 'You won the point'], ['point_lose', 'You lost the point'], ['victory', 'Match won'], ['defeat', 'Match lost'], ['intro', 'Arena title card, about 4 s']].forEach(([k, t]) => mus(`jingle_${k}`, `Jingle: ${t}`, 'Short, bright and toy-like.'));
+  [['drop', 3], ['scratch', 3], ['rewind', 1]].forEach(([k, n]) => { for (let i = 1; i <= n; i++) mus(n > 1 ? `dj_${k}_${i}` : `dj_${k}`, `DJ ${k} for big moments`, 'Optional.'); });
+
+  const GROUPS = [['all', 'All'], ['commentary', 'Commentary'], ['umpire', 'Umpire'], ['names', 'Names'], ['sfx', 'Sound effects'], ['crowd', 'Crowd'], ['music', 'Music']];
+  const GLABEL = Object.fromEntries(GROUPS);
+  const BY_KEY = new Map(ITEMS.map((it) => [it.k, it]));
+
+  // ---------------------------------------------------------------- state
+  const $ = (id) => document.getElementById(id);
+  let db = null;
+  let assets = null;
+  let takes = []; // {id, key, assetId, seconds, channels, keep, createdAt, source, fileName}
+  let filter = 'all';
+  let skipped = new Set();
+  let current = null;
+  let pendingKey = null;
+  let pendingUnsortedId = null;
+  try { filter = localStorage.getItem('vb.filter') || 'all'; } catch {}
+
+  const takesFor = (k) => takes.filter((t) => t.key === k).sort((a, b) => a.createdAt - b.createdAt);
+  const isDone = (k) => takes.some((t) => t.key === k);
+
+  // ---------------------------------------------------------------- audio processing
+  let actx = null;
+  const ctx = () => (actx ??= new (window.AudioContext || window.webkitAudioContext)());
+  function decode(buf) {
+    return new Promise((res, rej) => {
+      try {
+        const p = ctx().decodeAudioData(buf, res, rej);
+        if (p && p.then) p.then(res, rej);
+      } catch (e) { rej(e); }
+    });
+  }
+  /** Decode any audio/video file, keep the sound, trim silence, normalise to −1 dBFS, 44.1 kHz WAV. */
+  async function toWav(file, stereo) {
+    const audio = await decode(await file.arrayBuffer());
+    const rate = 44100;
+    const ch = stereo && audio.numberOfChannels > 1 ? 2 : 1;
+    const len = Math.max(1, Math.ceil(audio.duration * rate));
+    const off = new OfflineAudioContext(ch, len, rate);
+    const src = off.createBufferSource();
+    src.buffer = audio;
+    src.connect(off.destination);
+    src.start();
+    const out = await off.startRendering();
+    const chans = [...Array(ch)].map((_, i) => out.getChannelData(i));
+    let peak = 0;
+    for (const c of chans) for (let i = 0; i < c.length; i++) peak = Math.max(peak, Math.abs(c[i]));
+    if (peak < 0.003) throw new Error('silent');
+    const gain = 0.89 / peak;
+    const thr = 0.02 / gain + peak * 0.02;
+    let a = 0;
+    let b = len - 1;
+    const loud = (i) => chans.some((c) => Math.abs(c[i]) > thr);
+    while (a < b && !loud(a)) a++;
+    while (b > a && !loud(b)) b--;
+    a = Math.max(0, a - Math.round(rate * 0.08));
+    b = Math.min(len - 1, b + Math.round(rate * 0.15));
+    const n = b - a + 1;
+    const bytes = 44 + n * ch * 2;
+    const view = new DataView(new ArrayBuffer(bytes));
+    const w = (o, s) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+    w(0, 'RIFF'); view.setUint32(4, bytes - 8, true); w(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, ch, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * ch * 2, true); view.setUint16(32, ch * 2, true); view.setUint16(34, 16, true);
+    w(36, 'data'); view.setUint32(40, n * ch * 2, true);
+    let o = 44;
+    const fade = Math.round(rate * 0.01);
+    for (let i = 0; i < n; i++) {
+      const env = Math.min(1, i / fade, (n - 1 - i) / fade);
+      for (const c of chans) {
+        const v = Math.max(-1, Math.min(1, c[a + i] * gain * env));
+        view.setInt16(o, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+        o += 2;
+      }
+    }
+    return { blob: new Blob([view.buffer], { type: 'audio/wav' }), seconds: n / rate, channels: ch, peaks: chans[0] && summarize(chans[0].subarray(a, b + 1)) };
+  }
+  function summarize(data) {
+    const cols = 120;
+    const out = [];
+    const step = Math.max(1, Math.floor(data.length / cols));
+    for (let i = 0; i < cols; i++) {
+      let m = 0;
+      for (let j = i * step; j < Math.min(data.length, (i + 1) * step); j++) m = Math.max(m, Math.abs(data[j]));
+      out.push(m);
+    }
+    const p = Math.max(...out, 1e-6);
+    return out.map((v) => v / p);
+  }
+  function drawWave(canvas, peaks) {
+    canvas.hidden = false;
+    const g = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2f6b4a';
+    const bw = W / peaks.length;
+    peaks.forEach((v, i) => {
+      const h = Math.max(2, v * (H - 8));
+      g.fillRect(i * bw + 1, (H - h) / 2, Math.max(1, bw - 2), h);
+    });
+  }
+  // Assets accept text, so audio travels as base64 text (lossless); Claude decodes it back to WAV.
+  function blobToBase64(blob) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(',')[1] || '');
+      r.onerror = () => rej(r.error);
+      r.readAsDataURL(blob);
+    });
+  }
+  const urlCache = new Map();
+  async function playTake(t) {
+    try {
+      let url = urlCache.get(t.assetId);
+      if (!url) {
+        const txt = await (await fetch('/_blob/' + t.assetId)).text();
+        const bin = atob(txt.trim());
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        url = URL.createObjectURL(new Blob([u8], { type: t.mime || 'audio/wav' }));
+        urlCache.set(t.assetId, url);
+      }
+      const el = new Audio(url);
+      await el.play();
+    } catch (e) {
+      setStatus($('next-status'), 'Could not play that take back here. It is still saved.', 'err');
+    }
+  }
+
+  // ---------------------------------------------------------------- saving
+  async function saveFile(file, key, statusEl, source) {
+    if (!db || !assets) {
+      setStatus(statusEl, 'Saving needs you signed in to claude.ai as an editor of this page.', 'err');
+      return null;
+    }
+    const it = BY_KEY.get(key);
+    setStatus(statusEl, 'Cleaning up the sound…');
+    let blob;
+    let seconds = 0;
+    let channels = 1;
+    let mime = 'audio/wav';
+    let peaks = null;
+    try {
+      const r = await toWav(file, it ? it.stereo : false);
+      ({ blob, seconds, channels, peaks } = r);
+    } catch (e) {
+      if (String(e && e.message) === 'silent') {
+        setStatus(statusEl, 'That recording was silent. Check the mic is not covered and try again.', 'err');
+        return null;
+      }
+      // The browser could not decode it: keep the original file as-is.
+      blob = file;
+      mime = file.type || 'application/octet-stream';
+    }
+    if (blob.size > 14.5 * 1024 * 1024) {
+      setStatus(statusEl, `That file is too long to store (${Math.round(blob.size / 1048576)} MB). Trim it to under about a minute and try again.`, 'err');
+      return null;
+    }
+    setStatus(statusEl, 'Saving…');
+    try {
+      const b64 = await blobToBase64(blob);
+      const up = await assets.upload(new Blob([b64], { type: 'text/plain' }), { type: 'text/plain' });
+      const doc = db.collection('takes').doc();
+      await doc.set({ key, assetId: up.id, seconds: Math.round(seconds * 100) / 100, channels, mime, encoding: 'base64', source, fileName: file.name || '', keep: false, createdAt: Date.now() });
+      setStatus(statusEl, seconds ? `Saved: ${seconds.toFixed(1)} s, trimmed and levelled.` : 'Saved (original file kept).', 'ok');
+      return { peaks };
+    } catch (e) {
+      const code = e && e.code;
+      setStatus(statusEl, code === 'too_large' ? 'That file is too big to store. Trim it and try again.' : code === 'rate_limited' ? 'Saving too fast. Wait a few seconds and try again.' : 'Could not save that take. Try again in a moment.', 'err');
+      return null;
+    }
+  }
+  function setStatus(el, text, tone) {
+    el.textContent = text;
+    el.className = 'status' + (tone ? ' ' + tone : '');
+  }
+
+  // ---------------------------------------------------------------- next-up card
+  function pickNext() {
+    const pool = ITEMS.filter((it) => (filter === 'all' || it.g === filter) && !isDone(it.k) && !skipped.has(it.k));
+    return pool.find((it) => !it.upload) || pool[0] || null;
+  }
+  function renderNext() {
+    current = pickNext();
+    const chip = $('next-chip');
+    if (!current) {
+      chip.textContent = GLABEL[filter] || 'All';
+      chip.dataset.g = filter;
+      $('next-key').textContent = '';
+      $('next-line').textContent = filter === 'all' ? 'Everything is recorded. Tell Claude the audio is ready.' : 'This section is done. Pick another section below.';
+      $('next-dir').textContent = '';
+      $('next-rec').disabled = $('next-up').disabled = $('next-skip').disabled = true;
+      return;
+    }
+    $('next-rec').disabled = $('next-up').disabled = $('next-skip').disabled = false;
+    chip.textContent = GLABEL[current.g];
+    chip.dataset.g = current.g;
+    $('next-key').textContent = current.k;
+    $('next-line').textContent = current.t;
+    $('next-dir').textContent = [current.d, current.stereo ? 'Stereo if your recorder allows.' : '', current.upload ? 'Uploading a file works best for this one.' : ''].filter(Boolean).join(' ');
+  }
+
+  // ---------------------------------------------------------------- list
+  function renderFilters() {
+    $('filters').replaceChildren(
+      ...GROUPS.map(([g, label]) => {
+        const all = ITEMS.filter((it) => g === 'all' || it.g === g);
+        const done = all.filter((it) => isDone(it.k)).length;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = `${label} ${done}/${all.length}`;
+        b.setAttribute('aria-pressed', String(filter === g));
+        b.onclick = () => {
+          filter = g;
+          try { localStorage.setItem('vb.filter', g); } catch {}
+          skipped = new Set();
+          render();
+        };
+        return b;
+      }),
+    );
+  }
+  function takeChip(t, i) {
+    const s = document.createElement('span');
+    s.className = 'take' + (t.keep ? ' keep' : '');
+    s.append(`Take ${i + 1} · ${t.seconds ? t.seconds.toFixed(1) + ' s' : 'file'}`);
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.textContent = '▶';
+    play.setAttribute('aria-label', `Play take ${i + 1}`);
+    play.onclick = () => playTake(t);
+    const keep = document.createElement('button');
+    keep.type = 'button';
+    keep.textContent = t.keep ? '★ Best' : '☆';
+    keep.setAttribute('aria-label', 'Mark as the best take');
+    keep.onclick = async () => {
+      for (const o of takesFor(t.key)) if (o.keep !== (o.id === t.id)) await db.doc('takes/' + o.id).update({ keep: o.id === t.id });
+    };
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '✕';
+    del.setAttribute('aria-label', 'Delete this take');
+    del.onclick = async () => {
+      if (del.dataset.armed !== '1') {
+        del.dataset.armed = '1';
+        del.textContent = 'Delete?';
+        setTimeout(() => { del.dataset.armed = ''; del.textContent = '✕'; }, 2500);
+        return;
+      }
+      await db.doc('takes/' + t.id).delete();
+      try { await assets.delete(t.assetId); } catch {}
+    };
+    s.append(play, keep, del);
+    return s;
+  }
+  function renderList() {
+    const rows = ITEMS.filter((it) => filter === 'all' || it.g === filter);
+    $('list').replaceChildren(
+      ...rows.map((it) => {
+        const ts = takesFor(it.k);
+        const row = document.createElement('div');
+        row.className = 'item' + (ts.length ? ' done' : '');
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        const body = document.createElement('div');
+        body.className = 'body';
+        const top = document.createElement('div');
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.dataset.g = it.g;
+        chip.textContent = GLABEL[it.g];
+        const key = document.createElement('span');
+        key.className = 'key';
+        key.textContent = ' ' + it.k;
+        top.append(chip, key);
+        const text = document.createElement('div');
+        text.className = 'text';
+        text.textContent = it.t;
+        const acts = document.createElement('div');
+        acts.className = 'actions';
+        const rec = document.createElement('button');
+        rec.type = 'button';
+        rec.className = 'small';
+        rec.textContent = ts.length ? 'Record again' : 'Record';
+        rec.onclick = () => openCapture(it.k);
+        const up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'small ghost';
+        up.textContent = 'Upload';
+        up.onclick = () => openFile(it.k);
+        acts.append(rec, up);
+        const takesEl = document.createElement('div');
+        takesEl.className = 'takes';
+        ts.forEach((t, i) => takesEl.append(takeChip(t, i)));
+        body.append(top, text, takesEl, acts);
+        row.append(dot, body);
+        return row;
+      }),
+    );
+  }
+  function renderUnsorted() {
+    const loose = takes.filter((t) => t.key.startsWith('unsorted:'));
+    $('unsorted-wrap').hidden = loose.length === 0;
+    $('unsorted').replaceChildren(
+      ...loose.map((t) => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        const body = document.createElement('div');
+        body.className = 'body';
+        const name = document.createElement('div');
+        name.className = 'text';
+        name.textContent = t.fileName || 'Untitled file';
+        const sel = document.createElement('select');
+        sel.id = 'assign-' + t.id;
+        sel.setAttribute('aria-label', 'Assign to a script line');
+        const first = document.createElement('option');
+        first.value = '';
+        first.textContent = 'Assign to…';
+        sel.append(first);
+        for (const [g, label] of GROUPS.slice(1)) {
+          const og = document.createElement('optgroup');
+          og.label = label;
+          ITEMS.filter((it) => it.g === g).forEach((it) => {
+            const o = document.createElement('option');
+            o.value = it.k;
+            o.textContent = `${it.k}${isDone(it.k) ? ' ✓' : ''}`;
+            og.append(o);
+          });
+          sel.append(og);
+        }
+        sel.onchange = async () => { if (sel.value) await db.doc('takes/' + t.id).update({ key: sel.value }); };
+        const acts = document.createElement('div');
+        acts.className = 'takes';
+        acts.append(takeChip(t, 0));
+        body.append(name, sel, acts);
+        row.append(dot, body);
+        return row;
+      }),
+    );
+  }
+  function render() {
+    const done = ITEMS.filter((it) => isDone(it.k)).length;
+    $('count').textContent = `${done} / ${ITEMS.length}`;
+    $('barfill').style.width = `${(done / ITEMS.length) * 100}%`;
+    renderFilters();
+    renderNext();
+    renderList();
+    renderUnsorted();
+  }
+
+  // ---------------------------------------------------------------- inputs
+  function openCapture(key) {
+    pendingKey = key;
+    $('cap-input').value = '';
+    $('cap-input').click();
+  }
+  function openFile(key) {
+    pendingKey = key;
+    $('file-input').value = '';
+    $('file-input').click();
+  }
+  async function handleSingle(file, source) {
+    const key = pendingKey;
+    if (!file || !key) return;
+    const isNext = current && current.k === key;
+    const statusEl = $('next-status');
+    if (!isNext) {
+      $('next-key').textContent = key;
+      $('next-line').textContent = BY_KEY.get(key)?.t || key;
+    }
+    const r = await saveFile(file, key, statusEl, source);
+    if (r && r.peaks) drawWave($('next-wave'), r.peaks);
+  }
+  $('cap-input').addEventListener('change', (e) => handleSingle(e.target.files[0], 'record'));
+  $('file-input').addEventListener('change', (e) => handleSingle(e.target.files[0], 'upload'));
+  $('next-rec').onclick = () => current && openCapture(current.k);
+  $('next-up').onclick = () => current && openFile(current.k);
+  $('next-skip').onclick = () => {
+    if (current) skipped.add(current.k);
+    $('next-wave').hidden = true;
+    setStatus($('next-status'), '');
+    renderNext();
+  };
+
+  // Bulk: match file names to script keys; the rest waits in "Needs a home".
+  const norm = (name) => name.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, '');
+  function matchKey(name) {
+    const n = norm(name);
+    if (BY_KEY.has(n)) return n;
+    const noTake = n.replace(/_(take)?_?[a-c]$/, '').replace(/_take_?\d+$/, '');
+    if (BY_KEY.has(noTake)) return noTake;
+    return null;
+  }
+  async function handleBulk(files) {
+    const st = $('bulk-status');
+    let sorted = 0;
+    let loose = 0;
+    for (const [i, f] of [...files].entries()) {
+      const k = matchKey(f.name);
+      setStatus(st, `File ${i + 1} of ${files.length}: ${f.name}`);
+      const r = await saveFile(f, k || 'unsorted:' + norm(f.name), st, 'upload');
+      if (r) k ? sorted++ : loose++;
+    }
+    setStatus(st, `Done: ${sorted} sorted automatically${loose ? `, ${loose} need a home below` : ''}.`, 'ok');
+  }
+  $('bulk-btn').onclick = () => { $('bulk-input').value = ''; $('bulk-input').click(); };
+  $('bulk-input').addEventListener('change', (e) => handleBulk(e.target.files));
+  const drop = $('drop');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.style.borderColor = 'var(--accent)'; });
+  drop.addEventListener('dragleave', () => { drop.style.borderColor = ''; });
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.style.borderColor = ''; if (e.dataTransfer.files.length) handleBulk(e.dataTransfer.files); });
+
+  // ---------------------------------------------------------------- boot
+  render();
+  (async () => {
+    const c = window.claude;
+    if (!c || !c.use) {
+      $('notice').innerHTML = 'Open this page on <b>claude.ai</b> (signed in) so your recordings can be saved for Claude.';
+      return;
+    }
+    [db, assets] = await Promise.all([c.use('db'), c.use('assets')]);
+    if (!db || !assets) {
+      $('notice').innerHTML = 'You can read the script here, but saving needs you <b>signed in to claude.ai as an editor</b> of this page.';
+      return;
+    }
+    const timer = setTimeout(() => setStatus($('next-status'), 'Still connecting to your saved takes…'), 10000);
+    db.collection('takes').onSnapshot(
+      (snap) => {
+        clearTimeout(timer);
+        takes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const wasCurrent = current && current.k;
+        render();
+        if (wasCurrent && current && current.k !== wasCurrent) $('next-wave').hidden = true;
+      },
+      () => {
+        clearTimeout(timer);
+        setStatus($('next-status'), 'Lost the connection to your saved takes. Reload the page.', 'err');
+      },
+    );
+  })();
+})();
+</script>
