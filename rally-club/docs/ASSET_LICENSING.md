@@ -17,6 +17,10 @@ by the project; anything else needs a licence reference and the person who verif
 | Models: `shrub_02`, `potted_plant_02`, `planter_box_01` (1k glTF) | 3D | Poly Haven — polyhaven.com/models | CC0 1.0 | Claude Code pass 2, 2026-11-14 | `web/public/assets/models/<id>/`; re-download with `python3 scripts/fetch-assets.py` |
 | Members’ Lawn venue, crest, officials, crowd hats, lawn/ivy/backstop/scoreboard/clock textures | 3D + textures (procedural) + SVG | Original — `membersLawn.ts`, `textures.ts`, `index.html` | Project-owned | Claude Code pass 2, 2026-11-14 | Original design; evokes a grass-court championship without using any tournament’s marks |
 | UI fonts: Cormorant Garamond, Manrope | Font | Google Fonts | SIL Open Font License 1.1 | Claude Code pass 2, 2026-11-14 | Self-host before ship |
+| Resort world: four themed courts (Garden, Clay Terrace, Glass House, Sunset Cliff), stone terraces, sail shades, arched DJ booths, villa, bar, olive/cypress/lemon trees, lavender, parasols, sea and cliffs | 3D (procedural) | Original — `web/src/scene/resort.ts`, `themes.ts` | Project-owned | Claude Code pass 5, 2026-11-15 | Built from primitives; palette inspired by the user's own mood boards |
+| Club members Theo, Lila, Jasper, Marcus, Mei, Zara (rig, faces, outfits, animation set) | 3D (procedural) + canvas faces | Original — `web/src/scene/pal.ts`, `members.ts` | Project-owned | Claude Code pass 5, 2026-11-15 | Designed from the user-supplied "Meet the Members" sheet |
+| Laurel logo mark | SVG + canvas | Original — `index.html`, `resort.ts` (`drawLaurel`) | Project-owned | Claude Code pass 5, 2026-11-15 | |
+| UI fonts: Josefin Sans, Fredoka, Nunito | Font | Google Fonts | SIL Open Font License 1.1 | Claude Code pass 5, 2026-11-15 | Self-host before ship |
 | Three.js 0.170.0 | Library | npm | MIT | Claude Code pass 1, 2026-11-14 | |
 | Vite 6.3.5, TypeScript 5.8.3 | Dev tooling | npm | MIT / Apache-2.0 | Claude Code pass 1, 2026-11-14 | Not shipped |
 | `/Engine/BasicShapes/Sphere` (ball placeholder in UE) | 3D | Unreal Engine | Unreal EULA | — | Replace with project ball mesh |

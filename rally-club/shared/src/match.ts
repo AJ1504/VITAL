@@ -20,6 +20,11 @@ export interface SwingRequest {
   shot: StrokeShot;
   /** Lateral aim in the player's own frame: -1 = their left, +1 = their right. */
   aim: number;
+  /**
+   * Wii-style one-button aiming: direction comes from swing timing instead of `aim`. Swinging early pulls
+   * the ball crosscourt (left on a right-hander's forehand), late pushes it down the line.
+   */
+  timingAim?: boolean;
 }
 
 export interface ControlInput {
@@ -483,7 +488,13 @@ export class MatchSim {
 
     let shot: ShotType = req.shot;
     if (shot === 'dink' && this.ball.p.y > 1.2) shot = 'drive'; // can't dink a high ball softly
-    const target = this.chooseTarget(p, shot, req.aim, quality);
+    let aim = req.aim;
+    if (req.timingAim) {
+      const early = clamp((p.swingElapsed - SWING_IDEAL) / TIMING_TOL[p.assist], -1, 1); // + = early
+      const pull = p.stroke === 'backhand' ? 1 : -1;
+      aim = clamp(early * pull * 0.95 + (this.rng() - 0.5) * 0.2, -1, 1);
+    }
+    const target = this.chooseTarget(p, shot, aim, quality);
     const sol = solveShot({ ...this.ball.p }, target, shot, this.physics, this.court);
     // Execution error on the launch angle: mistimed swings find the net or sail long.
     const launchErr = shotErrorRadius(quality, p.assist === 'precision') * (p.assist === 'casual' ? 0.4 : 1) * p.errorScale;

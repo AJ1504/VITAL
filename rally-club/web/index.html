@@ -3,55 +3,46 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Rally Club — The Members’ Lawn</title>
-    <meta name="description" content="Rally Club P1 vertical slice — temporary browser gameplay harness for the Unreal Engine 5 build." />
+    <title>Rally Club</title>
+    <meta name="description" content="Rally Club — a sunny resort of courts: pickleball today, tennis and padel next. The club is yours." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
-  <body>
+  <body data-court="garden">
     <div id="stage"></div>
-
-    <div id="harness-badge" title="This browser build is a temporary gameplay harness. The production client is the Unreal Engine 5 project in /unreal.">
-      Temporary browser harness · not the Unreal build
-    </div>
 
     <!-- ===================== HUD ===================== -->
     <div id="hud" hidden>
       <div id="scoreboard" aria-live="polite">
-        <div class="sb-row" data-side="0"><span class="sb-serve"></span><span class="sb-name"></span><span class="sb-score">0</span></div>
-        <div class="sb-row" data-side="1"><span class="sb-serve"></span><span class="sb-name"></span><span class="sb-score">0</span></div>
+        <div class="sb-row" data-side="0"><span class="sb-dots"><i></i><i></i></span><span class="sb-name"></span><span class="sb-serve" title="Serving"></span><span class="sb-score">0</span></div>
+        <div class="sb-row" data-side="1"><span class="sb-dots"><i></i><i></i></span><span class="sb-name"></span><span class="sb-serve" title="Serving"></span><span class="sb-score">0</span></div>
         <div class="sb-meta"><span id="sb-call">0-0</span><span id="sb-rally"></span></div>
       </div>
       <div id="practice-panel" hidden>
         <div class="pp-title">Practice</div>
-        <div><b id="pp-streak">0</b> streak · best <b id="pp-best">0</b></div>
+        <div><b id="pp-streak">0</b> in a row · best <b id="pp-best">0</b></div>
         <div class="pp-sub"><span id="pp-good">0</span> good of <span id="pp-feeds">0</span></div>
       </div>
-      <div id="energy"><div id="energy-fill"></div><span>Crowd</span></div>
+      <div id="energy" title="Crowd energy"><div id="energy-fill"></div></div>
       <div id="toast" aria-live="assertive"></div>
       <div id="subtitle" aria-live="polite"><span class="sub-who">Commentary</span><span id="subtitle-text"></span></div>
-      <div id="controls-hint">
-        <span><kbd>J</kbd>/<kbd>Space</kbd> drive</span><span><kbd>K</kbd> dink</span><span><kbd>L</kbd> lob</span><span><kbd>←</kbd><kbd>→</kbd> aim / move</span><span><kbd>Esc</kbd> pause</span>
-      </div>
+      <div id="coach" hidden><div class="coach-step" id="coach-text"></div></div>
+      <div id="controls-hint"><span><kbd>Space</kbd> or <kbd>click</kbd> swing</span><span>early = crosscourt · late = down the line</span><span><kbd>Esc</kbd> pause</span></div>
       <button id="pause-btn" class="icon-btn" aria-label="Pause">❚❚</button>
       <div id="touch-controls">
-        <div class="tc-aim">
-          <button data-aim="-1" aria-label="Aim left">◀</button>
-          <button data-aim="1" aria-label="Aim right">▶</button>
-        </div>
         <div class="tc-shots">
-          <button data-shot="lob">Lob</button>
-          <button data-shot="dink">Dink</button>
-          <button data-shot="drive" class="primary">Swing</button>
+          <button data-shot="lob" aria-label="Lob">Lob</button>
+          <button data-shot="dink" aria-label="Dink">Dink</button>
         </div>
+        <button data-shot="auto" class="primary" aria-label="Swing">Swing</button>
       </div>
     </div>
 
     <!-- ===================== PRESENTATION OVERLAYS ===================== -->
     <div id="title-card" hidden>
       <div class="tc-kicker">Rally Club presents</div>
-      <div class="tc-title" id="tc-title">The Members’ Lawn</div>
+      <div class="tc-title" id="tc-title">The Garden Court</div>
       <div class="tc-sub" id="tc-sub">Singles · first to 11</div>
       <div class="tc-vs"><span id="tc-p0">You</span><i>vs</i><span id="tc-p1">Rafa</span></div>
       <div class="tc-skip">Press any key to skip</div>
@@ -63,174 +54,147 @@
       <div class="scd-call" id="scd-call"></div>
     </div>
     <div id="popups"></div>
+    <div id="court-labels"></div>
 
-    <!-- ===================== MENUS ===================== -->
+    <!-- ===================== CLUB MENU ===================== -->
     <div id="menu" class="screen">
-      <div class="brand">
-        <!-- Original club crest: laurel-framed shield, crossed paddles, ball, founding year. -->
-        <svg class="crest" viewBox="0 0 120 142" role="img" aria-label="Rally Club crest">
-          <defs>
-            <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3c788"/><stop offset="1" stop-color="#a98440"/></linearGradient>
-          </defs>
-          <path d="M60 14 L104 26 V66 C104 96 84 116 60 128 C36 116 16 96 16 66 V26 Z" fill="#0b2a20" stroke="url(#cg)" stroke-width="3.5"/>
-          <path d="M60 22 L96 32 V66 C96 91 80 108 60 119 C40 108 24 91 24 66 V32 Z" fill="none" stroke="url(#cg)" stroke-width="1" opacity="0.7"/>
-          <g fill="url(#cg)">
-            <g transform="rotate(-38 60 72)"><rect x="57" y="78" width="6" height="26" rx="2"/><ellipse cx="60" cy="62" rx="14" ry="18"/></g>
-            <g transform="rotate(38 60 72)"><rect x="57" y="78" width="6" height="26" rx="2"/><ellipse cx="60" cy="62" rx="14" ry="18"/></g>
+      <header class="logo" aria-label="Rally Club">
+        <div class="logo-word">RALLY CLUB</div>
+        <svg class="laurel" viewBox="0 0 120 40" aria-hidden="true">
+          <g fill="currentColor">
+            <path d="M58 34c-12-2-22-9-27-20 6 8 15 14 27 16z" opacity=".9" />
+            <path d="M62 34c12-2 22-9 27-20-6 8-15 14-27 16z" opacity=".9" />
+            <ellipse cx="38" cy="18" rx="7" ry="2.6" transform="rotate(-40 38 18)" /><ellipse cx="45" cy="25" rx="7" ry="2.6" transform="rotate(-25 45 25)" /><ellipse cx="52" cy="30" rx="6" ry="2.4" transform="rotate(-10 52 30)" />
+            <ellipse cx="82" cy="18" rx="7" ry="2.6" transform="rotate(40 82 18)" /><ellipse cx="75" cy="25" rx="7" ry="2.6" transform="rotate(25 75 25)" /><ellipse cx="68" cy="30" rx="6" ry="2.4" transform="rotate(10 68 30)" />
           </g>
-          <g transform="rotate(-38 60 72)"><ellipse cx="60" cy="62" rx="10" ry="13.5" fill="#123d2f"/></g>
-          <g transform="rotate(38 60 72)"><ellipse cx="60" cy="62" rx="10" ry="13.5" fill="#123d2f"/></g>
-          <circle cx="60" cy="40" r="7" fill="#f5efe1" stroke="url(#cg)" stroke-width="1.5"/>
-          <text x="60" y="104" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="url(#cg)">RC</text>
-          <g fill="none" stroke="url(#cg)" stroke-width="2" stroke-linecap="round">
-            <path d="M14 34 C2 60 6 100 34 124"/><path d="M106 34 C118 60 114 100 86 124"/>
-          </g>
-          <g fill="url(#cg)">
-            <ellipse cx="9" cy="52" rx="3" ry="7" transform="rotate(-20 9 52)"/><ellipse cx="7" cy="72" rx="3" ry="7" transform="rotate(-8 7 72)"/><ellipse cx="11" cy="92" rx="3" ry="7" transform="rotate(12 11 92)"/><ellipse cx="21" cy="110" rx="3" ry="7" transform="rotate(35 21 110)"/>
-            <ellipse cx="111" cy="52" rx="3" ry="7" transform="rotate(20 111 52)"/><ellipse cx="113" cy="72" rx="3" ry="7" transform="rotate(8 113 72)"/><ellipse cx="109" cy="92" rx="3" ry="7" transform="rotate(-12 109 92)"/><ellipse cx="99" cy="110" rx="3" ry="7" transform="rotate(-35 99 110)"/>
-          </g>
-          <path d="M32 128 H88 L84 138 H36 Z" fill="#6b1f2e" stroke="url(#cg)" stroke-width="1"/>
-          <text x="60" y="136" text-anchor="middle" font-family="Manrope, sans-serif" font-size="6.5" font-weight="700" letter-spacing="2" fill="#e3c788">MMXXVI</text>
         </svg>
-        <div>
-          <div class="brand-kicker">EST. MMXXVI · PRIVATE MEMBERS</div>
-          <h1>Rally&nbsp;Club</h1>
-          <div class="brand-venue">The Members’ Lawn · Championship Pickleball</div>
-        </div>
-      </div>
-      <hr class="rule" />
-      <nav class="tabs" role="tablist">
-        <button data-tab="home" class="active">Home</button>
-        <button data-tab="play">Play</button>
-        <button data-tab="sports">Sports</button>
-        <button data-tab="player">My Player</button>
-        <button data-tab="friends">Friends</button>
-        <button data-tab="courts">Courts</button>
+        <div class="logo-tag">THE CLUB IS YOURS</div>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="Club">
+        <button data-tab="play" class="active">Courts</button>
+        <button data-tab="members">Members</button>
         <button data-tab="settings">Settings</button>
       </nav>
 
-      <section class="panel" data-panel="home">
-        <div class="tiles">
-          <button class="tile tile-play" id="btn-quick"><span class="tile-icon">🎾</span><b>Play Match</b><small>Singles vs the club pro</small></button>
-          <button class="tile tile-practice" id="btn-practice"><span class="tile-icon">🎯</span><b>Practice</b><small>Ball machine &amp; streaks</small></button>
+      <section class="panel panel-courts" data-panel="play">
+        <div class="courts">
+          <article class="court-card" data-court="garden">
+            <div class="cc-swatch"><i style="background:#9db592"></i><i style="background:#e9d6ad"></i><i style="background:#b7a3d9"></i></div>
+            <div class="cc-sport">Pickleball · Open</div>
+            <h3>The Garden Court</h3>
+            <p>Sage and sand among the olive trees, with the DJ under the stone arch.</p>
+            <div class="cc-actions">
+              <button class="cta" id="btn-quick">Play match</button>
+              <button class="cta ghost" id="btn-practice">Practice</button>
+            </div>
+          </article>
+          <article class="court-card soon" data-court="clay">
+            <div class="cc-swatch"><i style="background:#9fbbd8"></i><i style="background:#d99c86"></i><i style="background:#f6efe0"></i></div>
+            <div class="cc-sport">Tennis · Opening soon</div>
+            <h3>The Clay Terrace</h3>
+            <p>Powder-blue court on a terracotta terrace above the valley.</p>
+          </article>
+          <article class="court-card soon" data-court="glass">
+            <div class="cc-swatch"><i style="background:#bcaadd"></i><i style="background:#e4dbef"></i><i style="background:#dff0f5"></i></div>
+            <div class="cc-sport">Padel · Opening soon</div>
+            <h3>The Glass House</h3>
+            <p>A lavender padel cage wrapped in glass and wisteria.</p>
+          </article>
+          <article class="court-card soon" data-court="sunset">
+            <div class="cc-swatch"><i style="background:#eaa58f"></i><i style="background:#f5d2bf"></i><i style="background:#7fb3cf"></i></div>
+            <div class="cc-sport">Pickleball · Opening soon</div>
+            <h3>The Sunset Cliff</h3>
+            <p>Peach court on the cliff edge, lanterns and lounges over the sea.</p>
+          </article>
         </div>
-        <p class="lede">Sunshine, a full house and a freshly striped lawn. Grab your paddle!</p>
-        <p class="fine">Click anywhere to start the music. Phone motion controllers arrive in P2 — for now play with keyboard, gamepad or touch.</p>
+        <p class="fine">One button does it all: <kbd>Space</kbd>, a click or a tap swings, and your timing aims the shot. <a id="card-unreal" href="./stream.html">Play the Unreal Engine stream</a></p>
       </section>
 
-      <section class="panel" data-panel="play" hidden>
-        <div class="cards">
-          <button class="card" id="card-match"><b>Match vs Club AI</b><span>Singles · first to <span class="pts">11</span>, win by 2</span></button>
-          <button class="card" id="card-practice"><b>Practice</b><span>Ball machine feeds · build a streak</span></button>
-          <a class="card" id="card-unreal" href="./stream.html"><b>Play on Unreal Engine</b><span>Pixel Streaming 2 · rendered on the club’s GPU host</span></a>
-          <button class="card locked" disabled><b>Local Social Match</b><span>Two phones · P3</span></button>
-          <button class="card locked" disabled><b>Online</b><span>Rooms & matchmaking · P5</span></button>
-        </div>
-      </section>
-
-      <section class="panel" data-panel="sports" hidden>
-        <div class="cards">
-          <div class="card active"><b>Pickleball</b><span>Available</span></div>
-          <div class="card locked"><b>Tennis</b><span>Planned · P4</span></div>
-          <div class="card locked"><b>Padel</b><span>Planned · P4 (wall rebounds)</span></div>
-        </div>
-      </section>
-
-      <section class="panel" data-panel="player" hidden>
-        <label class="field">Player name <input id="set-name" maxlength="14" autocomplete="off" /></label>
-        <p class="fine">Avatar creator, outfits, rackets, emotes and saved progression are planned for P5/P6.</p>
-      </section>
-
-      <section class="panel" data-panel="friends" hidden>
-        <p class="fine">Friends, private rooms, spectators and video/voice calling are planned for P5.</p>
-      </section>
-
-      <section class="panel" data-panel="courts" hidden>
-        <div class="cards">
-          <button class="card" data-venue="lawn"><b>The Members’ Lawn</b><span>Championship grass · Members’ Box · bandstand DJ</span></button>
-          <button class="card" data-venue="rooftop"><b>Sunset Rooftop Club</b><span>Emerald & terracotta · DJ balcony</span></button>
-          <div class="card locked"><b>Azure Coast Country Club</b><span>P4</span></div>
-          <div class="card locked"><b>Neon Social Club</b><span>P6</span></div>
-          <div class="card locked"><b>Grand Championship</b><span>P6</span></div>
-        </div>
+      <section class="panel panel-members" data-panel="members" hidden>
+        <h2 class="panel-title">Meet the Members</h2>
+        <div class="members" id="members"></div>
+        <label class="field name-field">Your name <input id="set-name" maxlength="14" autocomplete="off" placeholder="Use the member's name" /></label>
       </section>
 
       <section class="panel settings" data-panel="settings" hidden>
         <fieldset>
-          <legend>Gameplay</legend>
-          <label class="field">Assist
+          <legend>Game</legend>
+          <label class="field">Help
             <select id="set-assist">
-              <option value="casual">Casual — auto-move, generous timing</option>
-              <option value="classic">Classic — Wii-like auto-move</option>
-              <option value="precision">Precision — manual movement, tight timing</option>
+              <option value="casual">Relaxed: auto-run, forgiving timing</option>
+              <option value="classic">Club: auto-run, normal timing</option>
+              <option value="precision">Pro: move yourself, tight timing</option>
             </select>
           </label>
           <label class="field">Opponent
             <select id="set-difficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
           </label>
           <label class="field">Game to
-            <select id="set-points"><option value="7">7</option><option value="11">11</option><option value="15">15</option><option value="21">21</option></select>
+            <select id="set-points"><option value="7">7</option><option value="11">11</option><option value="15">15</option></select>
           </label>
         </fieldset>
         <fieldset>
-          <legend>Audio</legend>
+          <legend>Sound</legend>
           <label class="field">Master <input type="range" id="set-master" min="0" max="1" step="0.05" /></label>
-          <label class="field">Music (DJ) <input type="range" id="set-music" min="0" max="1" step="0.05" /></label>
+          <label class="field">DJ <input type="range" id="set-music" min="0" max="1" step="0.05" /></label>
           <label class="field">Crowd <input type="range" id="set-crowd" min="0" max="1" step="0.05" /></label>
           <label class="field">Effects <input type="range" id="set-sfx" min="0" max="1" step="0.05" /></label>
-          <label class="check"><input type="checkbox" id="set-voice" /> Commentary voice (temporary browser TTS)</label>
+          <label class="check"><input type="checkbox" id="set-voice" /> Commentary voice</label>
         </fieldset>
         <fieldset>
-          <legend>Graphics</legend>
-          <label class="field">Preset
-            <select id="set-graphics"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+          <legend>Display</legend>
+          <label class="field">Graphics
+            <select id="set-graphics"><option value="low">Smooth (fastest)</option><option value="medium">Balanced</option><option value="high">Beautiful</option></select>
           </label>
           <label class="check"><input type="checkbox" id="set-shake" /> Camera shake</label>
-        </fieldset>
-        <fieldset>
-          <legend>Accessibility</legend>
           <label class="check"><input type="checkbox" id="set-subtitles" /> Subtitles</label>
           <label class="check"><input type="checkbox" id="set-reduced" /> Reduced motion</label>
           <label class="check"><input type="checkbox" id="set-contrast" /> High-contrast HUD</label>
-          <label class="check"><input type="checkbox" id="set-haptics" /> Vibration (where supported)</label>
+          <label class="check"><input type="checkbox" id="set-haptics" /> Vibration</label>
           <label class="field">Text size
             <select id="set-text"><option value="1">100%</option><option value="1.15">115%</option><option value="1.3">130%</option></select>
           </label>
+          <button class="cta ghost small" id="btn-coach-reset" type="button">Show the swing tutorial again</button>
         </fieldset>
       </section>
+      <div id="harness-badge" title="The browser edition renders the shared game core in WebGL. The Unreal Engine 5 build streams via Pixel Streaming.">Browser edition · not the Unreal build</div>
     </div>
 
     <div id="pause" class="screen modal" hidden>
-      <h2>Paused</h2>
-      <div class="cta-col">
-        <button class="cta" id="btn-resume">Resume</button>
-        <button class="cta ghost" id="btn-restart">Restart</button>
-        <button class="cta ghost" id="btn-quit">Back to Club</button>
+      <div class="modal-card">
+        <h2>Paused</h2>
+        <div class="cta-col">
+          <button class="cta" id="btn-resume">Resume</button>
+          <button class="cta ghost" id="btn-restart">Restart</button>
+          <button class="cta ghost" id="btn-quit">Back to the club</button>
+        </div>
       </div>
     </div>
 
     <div id="results" class="screen modal" hidden>
-      <svg class="trophy" viewBox="0 0 120 130" aria-hidden="true">
-        <defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset="0.5" stop-color="#e2b54f"/><stop offset="1" stop-color="#a97b22"/></linearGradient></defs>
-        <path d="M30 14 H90 V44 C90 66 76 80 60 82 C44 80 30 66 30 44 Z" fill="url(#tg)"/>
-        <path d="M30 22 H14 C14 44 22 54 34 56 M90 22 H106 C106 44 98 54 86 56" fill="none" stroke="url(#tg)" stroke-width="7" stroke-linecap="round"/>
-        <rect x="53" y="82" width="14" height="18" fill="url(#tg)"/>
-        <rect x="36" y="100" width="48" height="12" rx="3" fill="url(#tg)"/>
-        <rect x="30" y="112" width="60" height="12" rx="3" fill="#123d2f"/>
-        <circle cx="60" cy="42" r="12" fill="#fff6d6" opacity="0.6"/>
-      </svg>
-      <div class="brand-kicker">Match complete</div>
-      <h2 id="res-title">You win!</h2>
-      <div id="res-score" class="res-score">11 – 7</div>
-      <dl class="res-stats">
-        <div><dt>Longest rally</dt><dd id="res-rally">0</dd></div>
-        <div><dt>Perfect hits</dt><dd id="res-perfect">0</dd></div>
-        <div><dt>Aces</dt><dd id="res-aces">0</dd></div>
-        <div><dt>Duration</dt><dd id="res-time">0:00</dd></div>
-      </dl>
-      <div class="cta-row">
-        <button class="cta" id="btn-rematch">Rematch</button>
-        <button class="cta ghost" id="btn-menu">Back to Club</button>
+      <div class="modal-card">
+        <svg class="trophy" viewBox="0 0 120 130" aria-hidden="true">
+          <defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1c2" /><stop offset="0.5" stop-color="#e8c66a" /><stop offset="1" stop-color="#b8913a" /></linearGradient></defs>
+          <path d="M30 14 H90 V44 C90 66 76 80 60 82 C44 80 30 66 30 44 Z" fill="url(#tg)" />
+          <path d="M30 22 H14 C14 44 22 54 34 56 M90 22 H106 C106 44 98 54 86 56" fill="none" stroke="url(#tg)" stroke-width="7" stroke-linecap="round" />
+          <rect x="53" y="82" width="14" height="18" fill="url(#tg)" />
+          <rect x="36" y="100" width="48" height="12" rx="3" fill="url(#tg)" />
+          <rect x="30" y="112" width="60" height="12" rx="3" fill="#8fab83" />
+        </svg>
+        <div class="kicker">Match complete</div>
+        <h2 id="res-title">You win!</h2>
+        <div id="res-score" class="res-score">11 – 7</div>
+        <dl class="res-stats">
+          <div><dt>Longest rally</dt><dd id="res-rally">0</dd></div>
+          <div><dt>Perfect hits</dt><dd id="res-perfect">0</dd></div>
+          <div><dt>Aces</dt><dd id="res-aces">0</dd></div>
+          <div><dt>Time</dt><dd id="res-time">0:00</dd></div>
+        </dl>
+        <div class="cta-row">
+          <button class="cta" id="btn-rematch">Rematch</button>
+          <button class="cta ghost" id="btn-menu">Back to the club</button>
+        </div>
       </div>
     </div>
 

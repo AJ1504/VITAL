@@ -91,10 +91,17 @@ await test('1. menu renders with the harness label and no errors', async () => {
   assert((await state(page)).screen === 'menu', 'menu screen');
   const badge = await page.textContent('#harness-badge');
   assert(/not the Unreal build/i.test(badge ?? ''), 'harness badge text');
-  for (const tab of ['Home', 'Play', 'Sports', 'My Player', 'Friends', 'Courts', 'Settings']) {
+  for (const tab of ['Courts', 'Members', 'Settings']) {
     assert(await page.isVisible(`.tabs button:has-text("${tab}")`), `tab ${tab}`);
   }
   await page.screenshot({ timeout: 240000, path: `${shots}01-menu.png` });
+  await page.click('.tabs button:has-text("Members")');
+  await page.waitForTimeout(300);
+  assert((await page.locator('#members .member').count()) === 6, 'six members on the roster');
+  await page.click('#members .member[data-member="lila"]');
+  await page.waitForTimeout(300);
+  assert(await page.isVisible('#members .member.active[data-member="lila"]'), 'member selection');
+  await page.screenshot({ timeout: 240000, path: `${shots}02-members.png` });
   await page.click('.tabs button:has-text("Settings")');
   await page.waitForTimeout(300);
   await page.screenshot({ timeout: 240000, path: `${shots}02-settings.png` });
@@ -174,8 +181,8 @@ await test('6. phone-sized viewport shows touch fallback controls', async () => 
   const { page, ctx } = await openPage(`${BASE}?mute&nointro&start=match&seed=6&gfx=low`, { ...devices['iPhone 13'] });
   await waitFor(page, (s) => s.screen === 'hud', 10000, 'hud');
   await page.waitForTimeout(1000);
-  assert(await page.isVisible('#touch-controls button[data-shot="drive"]'), 'touch swing button visible');
-  await page.tap('#touch-controls button[data-shot="drive"]');
+  assert(await page.isVisible('#touch-controls button[data-shot="auto"]'), 'touch swing button visible');
+  await page.tap('#touch-controls button[data-shot="auto"]');
   await waitFor(page, (s) => s.phase === 'in_play' || s.pointsPlayed > 0, 5000, 'touch serve');
   await page.screenshot({ timeout: 240000, path: `${shots}09-mobile.png` });
   await ctx.close();
@@ -183,7 +190,7 @@ await test('6. phone-sized viewport shows touch fallback controls', async () => 
 
 await test('7. Unreal Pixel Streaming page loads, validates the host and attempts a connection', async () => {
   const { page, errors, ctx } = await openPage(`${BASE}?mute&nointro&gfx=low`);
-  await page.click('.tabs button:has-text("Play")');
+  await page.click('.tabs button:has-text("Courts")');
   const href = await page.getAttribute('#card-unreal', 'href');
   assert(href === './stream.html', `Play tab links to the stream page (${href})`);
   await page.goto(`${BASE}stream.html`, { waitUntil: 'domcontentloaded' });

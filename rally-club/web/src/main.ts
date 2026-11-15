@@ -4,6 +4,9 @@ import { otherSide } from '../../shared/src/court.ts';
 import type { MatchSim } from '../../shared/src/match.ts';
 import { Game, type GameUi, type MatchConfig, type MatchStats } from './game.ts';
 import { type Settings, loadSettings, saveSettings } from './settings.ts';
+import { MEMBERS } from './scene/members.ts';
+import { COURTS, type CourtId } from './scene/themes.ts';
+import type { InputShot } from './input/input.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const $$ = <T extends HTMLElement = HTMLElement>(sel: string) => Array.from(document.querySelectorAll(sel)) as T[];
@@ -119,9 +122,53 @@ const ui: GameUi = {
     $('#popups').appendChild(p);
     window.setTimeout(() => p.remove(), 1200);
   },
+  coach(step) {
+    const el = $('#coach');
+    if (!step) {
+      el.hidden = true;
+      return;
+    }
+    const touch = matchMedia('(pointer: coarse)').matches;
+    const press = touch ? 'Tap' : 'Press Space';
+    const copy: Record<string, [string, string]> = {
+      serve: [`${press} to serve`, 'Your member tosses and serves for you'],
+      swing: [`${press} as the ball reaches the ring`, 'Your feet move themselves. Just time the swing.'],
+      aim: ['Swing early to go crosscourt, late to go down the line', 'Watch your opponent and aim away from them'],
+    };
+    const [a, b] = copy[step];
+    $('#coach-text').innerHTML = `${a}<small>${b}</small>`;
+    el.hidden = false;
+  },
+  courtLabels(list) {
+    const root = $('#court-labels');
+    if (!list.length || $('#menu').hidden) {
+      root.replaceChildren();
+      return;
+    }
+    if (root.childElementCount !== list.length) {
+      root.replaceChildren(
+        ...list.map((c) => {
+          const t = COURTS[c.id as CourtId];
+          const d = document.createElement('div');
+          d.className = 'court-label';
+          const dot = document.createElement('i');
+          dot.style.background = `#${t.court.toString(16).padStart(6, '0')}`;
+          d.append(dot, `${t.name}${t.playable ? '' : ' · soon'}`);
+          return d;
+        }),
+      );
+    }
+    list.forEach((c, i) => {
+      const d = root.children[i] as HTMLElement;
+      d.style.display = c.visible ? '' : 'none';
+      d.style.left = `${c.x}px`;
+      d.style.top = `${c.y}px`;
+    });
+  },
 };
 game.ui = ui;
 game.input.bindTouch($('#touch-controls'));
+game.input.bindCanvas($('#stage'));
 
 // ---------------------------------------------------------------- screens
 type Screen = 'menu' | 'hud' | 'pause' | 'results';
@@ -166,20 +213,55 @@ $$('.tabs button').forEach((b) =>
     $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== b.dataset.tab));
   }),
 );
-// Courts: switching venue rebuilds the world, so save and reload.
-$$<HTMLButtonElement>('[data-venue]').forEach((b) => {
-  b.classList.toggle('active', b.dataset.venue === settings.venue);
-  b.addEventListener('click', () => {
-    if (b.dataset.venue === game.settings.venue) return;
-    game.settings.venue = b.dataset.venue as Settings['venue'];
-    saveSettings(game.settings);
-    location.reload();
-  });
+// Court cards: hovering a card re-tints the UI in that court's pastel family.
+$$('.court-card').forEach((c) => {
+  c.addEventListener('pointerenter', () => (document.body.dataset.court = c.dataset.court));
+  c.addEventListener('pointerleave', () => (document.body.dataset.court = 'garden'));
 });
 $('#btn-quick').addEventListener('click', () => start({ mode: 'match' }));
-$('#card-match').addEventListener('click', () => start({ mode: 'match' }));
 $('#btn-practice').addEventListener('click', () => start({ mode: 'practice' }));
-$('#card-practice').addEventListener('click', () => start({ mode: 'practice' }));
+$('#btn-coach-reset').addEventListener('click', (e) => {
+  try {
+    localStorage.setItem('rally-club.coached', '0');
+  } catch {
+    /* ignore */
+  }
+  (e.currentTarget as HTMLElement).textContent = 'Tutorial will show next match';
+});
+
+// Members roster.
+function buildMembers(): void {
+  const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+  $('#members').replaceChildren(
+    ...MEMBERS.map((m) => {
+      const b = document.createElement('button');
+      b.className = 'member';
+      b.dataset.member = m.id;
+      b.classList.toggle('active', m.id === game.settings.memberId);
+      const sw = document.createElement('span');
+      sw.className = 'swatches';
+      for (const c of [m.look.shirt, m.look.trousers ?? m.look.shorts, m.look.hair]) {
+        const i = document.createElement('i');
+        i.style.background = hex(c);
+        sw.append(i);
+      }
+      const name = document.createElement('b');
+      name.textContent = m.name;
+      const tag = document.createElement('small');
+      tag.textContent = m.tagline;
+      b.append(sw, name, tag);
+      b.addEventListener('click', () => {
+        game.audio.uiClick();
+        game.settings.memberId = m.id;
+        saveSettings(game.settings);
+        game.setMember(m.id);
+        $$('.member').forEach((x) => x.classList.toggle('active', x === b));
+      });
+      return b;
+    }),
+  );
+}
+buildMembers();
 $('#pause-btn').addEventListener('click', () => game.input.onPause?.());
 $('#btn-resume').addEventListener('click', () => show('hud'));
 $('#btn-restart').addEventListener('click', () => start(lastConfig));
@@ -274,7 +356,7 @@ window.__rally = {
   game,
   start,
   toMenu,
-  press: (shot: 'drive' | 'dink' | 'lob') => game.input.press(shot),
+  press: (shot: InputShot = 'auto') => game.input.press(shot),
   step: () => game.step(),
   state: () => {
     const sim = game.sim;

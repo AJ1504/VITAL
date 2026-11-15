@@ -1,37 +1,35 @@
-// Browser game session: renders the shared MatchSim in Three.js with expressive "Pal" athletes,
-// a presentation flow (intro fly-in → Ready/Play → point cut-aways → celebration → results) and
-// game-feel layers (hit-stop, slow-mo on perfect shots, squash & stretch, impact rings, pop-ups).
-// The production client is the Unreal Engine 5 build in /unreal (streamed via Pixel Streaming 2).
+// Rally Club — browser game session. Renders the shared MatchSim in the Mediterranean resort world with
+// the member characters, and runs the presentation (club map → intro → Ready/Play → point cut-aways →
+// celebration → results) and the Wii-style feel (one-button timing, hit-stop, squash & stretch, pop-ups).
+// Simulation and AI run on a fixed 120 Hz tick, so gameplay is identical at any frame rate.
 
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { AI_PROFILES, AiController } from '../../shared/src/ai.ts';
 import { type AtmosphereCue, AtmosphereDirector } from '../../shared/src/atmosphere.ts';
 import { CommentaryEngine } from '../../shared/src/commentary.ts';
 import { type Side, otherSide, sideSign } from '../../shared/src/court.ts';
-import { type ControlInput, type GameMode, MatchSim, NO_INPUT, type SimEvent } from '../../shared/src/match.ts';
+import { type ControlInput, type GameMode, MatchSim, NO_INPUT, SIM_DT, SWING_IDEAL, type SimEvent, type StrokeShot } from '../../shared/src/match.ts';
 import type { FaultReason } from '../../shared/src/rules/pickleball.ts';
 import { AudioEngine } from './audio/audio.ts';
 import { InputManager } from './input/input.ts';
-import { Crowd, type CrowdOptions } from './scene/crowd.ts';
-import { type LawnExtras, type Official, buildMembersLawn } from './scene/membersLawn.ts';
+import { Crowd } from './scene/crowd.ts';
+import { MEMBERS, memberById } from './scene/members.ts';
 import { Pal, type PalLook } from './scene/pal.ts';
-import { PALETTE, ROYAL, SUMMER_OUTFITS } from './scene/palette.ts';
+import { PALETTE } from './scene/palette.ts';
+import { type ResortExtras, buildResort } from './scene/resort.ts';
 import { radialTexture } from './scene/textures.ts';
-import { type Venue, buildVenue } from './scene/venue.ts';
+import { COURTS } from './scene/themes.ts';
+import type { Venue } from './scene/venue.ts';
 import type { Settings } from './settings.ts';
 
 export interface MatchConfig {
   mode: GameMode;
   autoplay?: boolean;
   seed?: number;
-  /** Skip the intro fly-in (tests / rematch). */
   skipIntro?: boolean;
 }
 
@@ -53,14 +51,14 @@ export interface GameUi {
   energy(v: number): void;
   practice(streak: number, best: number, good: number, feeds: number): void;
   results(winner: Side, names: [string, string], score: [number, number], stats: MatchStats): void;
-  /** Big centre banner ("READY?", "PLAY!", "GAME POINT"). */
   banner(text: string, kind: BannerKind, sub?: string): void;
-  /** Venue title card during the intro (null hides it). */
   titleCard(card: { title: string; sub: string; names: [string, string] } | null): void;
-  /** Between-point score card. */
   scoreCard(card: { names: [string, string]; score: [number, number]; server: number; call: string; winner: number } | null): void;
-  /** Floating text near a screen position (e.g. "NICE SHOT!"). */
   popup(text: string, x: number, y: number, tone: 'nice' | 'perfect' | 'ace' | 'miss'): void;
+  /** First-match coaching ("Press SPACE just before the ball reaches you"). */
+  coach(step: 'serve' | 'swing' | 'aim' | null): void;
+  /** Club-map court labels: screen positions for each court (menu only). */
+  courtLabels(list: { id: string; x: number; y: number; visible: boolean }[]): void;
 }
 
 const FAULT_TOAST: Record<FaultReason, string> = {
@@ -76,12 +74,13 @@ const FAULT_TOAST: Record<FaultReason, string> = {
   double_hit: 'DOUBLE HIT',
 };
 
-const BALL_VISUAL_SCALE = 1.7; // render-only: improves readability (physics keeps the regulation ball)
+const BALL_VISUAL_SCALE = 1.7;
+const PASTEL_OUTFITS = [0x9db592, 0xc4b2e2, 0xf3df8e, 0x8ea5cf, 0xf6efe0, 0xffffff, 0xeab8a6, 0xb9dcb0, 0xf2c9d6, 0xd8cdee, 0xece0c8, 0xa8c8e0];
 
 type Phase = 'menu' | 'intro' | 'play' | 'celebrate';
-/** Intro fly-in control points (start high over the NW corner, end at the follow-cam spot). */
-const INTRO_PATH = [new THREE.Vector3(-20, 18, -22), new THREE.Vector3(-15, 15, 2), new THREE.Vector3(-5, 10, 18), new THREE.Vector3(0, 5.4, 14.6)];
-type CamMode = 'menu' | 'intro' | 'follow' | 'winner' | 'celebrate';
+type CamMode = 'map' | 'intro' | 'follow' | 'winner' | 'celebrate';
+
+const INTRO_PATH = [new THREE.Vector3(-26, 26, -30), new THREE.Vector3(-18, 16, -4), new THREE.Vector3(-6, 9, 18), new THREE.Vector3(0, 5.2, 15.2)];
 
 export class Game {
   readonly renderer: THREE.WebGLRenderer;
@@ -94,43 +93,46 @@ export class Game {
   sim: MatchSim | null = null;
   director: AtmosphereDirector | null = null;
   paused = false;
-  /** QA-only: simulation steps per rendered frame (set via ?speed=N). */
   timeScale = 1;
   settings: Settings;
   ui: GameUi | null = null;
   onFrame: (() => void) | null = null;
-  assetsReady = false;
+  assetsReady = true;
   onAssetsReady: (() => void) | null = null;
   phase: Phase = 'menu';
 
+  private resort: ResortExtras;
   private ais: (AiController | null)[] = [null, null];
   private pals: [Pal, Pal];
   private dj: Pal;
-  private officials: { o: Official; pal: Pal }[] = [];
-  private lawn: LawnExtras | null = null;
-  private crowdOpts: CrowdOptions = {};
+  private bartender: Pal;
+  private waiter: Pal;
+  private waiterT = 0;
+  private shadowTex = radialTexture('rgba(60,50,30,0.5)');
   private ball: THREE.Mesh;
   private ballShadow: THREE.Mesh;
   private trail: THREE.Mesh;
   private trailPts: THREE.Vector3[] = [];
+  private trailPos = new Float32Array(14 * 2 * 3);
+  private trailCol = new Float32Array(14 * 2 * 3);
   private trailSpeed = 0;
   private ring: THREE.Mesh;
   private ringT = 0;
+  private cue: THREE.Mesh;
   private machine: THREE.Group;
   private confetti: THREE.InstancedMesh;
   private confettiState: { p: THREE.Vector3; v: THREE.Vector3; r: THREE.Euler; w: THREE.Vector3 }[] = [];
   private confettiTime = 0;
   private composer: EffectComposer;
-  private gtao: GTAOPass;
   private bloom: UnrealBloomPass;
   private clock = new THREE.Clock();
-  private camMode: CamMode = 'menu';
+  private camMode: CamMode = 'map';
   private camT = 0;
   private camFocus: Side = 0;
-  private camPos = new THREE.Vector3(0, 12, 24);
-  private camLook = new THREE.Vector3(0, 0, -1);
+  private camPos = new THREE.Vector3(0, 60, 70);
+  private camLook = new THREE.Vector3(0, 0, -10);
   private kick = 0;
-  private menuAngle = 0;
+  private mapAngle = 0;
   private names: [string, string] = ['You', 'Rival'];
   private stats: MatchStats = { longestRally: 0, perfect: [0, 0], aces: [0, 0], points: 0, durationS: 0 };
   private resultAt = -1;
@@ -144,96 +146,102 @@ export class Game {
   private lastScorer: Side | null = null;
   private menuSwingClock = 0;
   private fixedDt = 0;
+  private simAcc = 0;
+  private pendingHuman: ControlInput | null = null;
+  private coachStep: 'serve' | 'swing' | 'aim' | null = null;
+  private coachDone = false;
+  private hits = 0;
   private voices: { umpire?: SpeechSynthesisVoice; commentary?: SpeechSynthesisVoice } | null = null;
+  private v1 = new THREE.Vector3();
+  private v2 = new THREE.Vector3();
 
   constructor(container: HTMLElement, settings: Settings) {
     this.settings = settings;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMapping = THREE.NeutralToneMapping; // soft pastel response (no ACES contrast/saturation)
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
-    this.camera = new THREE.PerspectiveCamera(44, 1, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 900);
     this.camera.position.copy(this.camPos);
     this.audio = new AudioEngine();
 
     const tmp = new MatchSim();
-    const regal = settings.venue !== 'rooftop';
-    if (regal) {
-      const v = buildMembersLawn(this.scene, tmp.court);
-      this.venue = v;
-      this.lawn = v.extras;
-      this.crowdOpts = { outfits: SUMMER_OUTFITS, hatChance: 0.3, memberOutfits: [ROYAL.navy, ROYAL.navy, 0x2b3a2f, ROYAL.claret, 0xf5efe1, 0xffffff] };
-    } else {
-      this.venue = buildVenue(this.scene, tmp.court);
-    }
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.45;
-    this.crowd = new Crowd(this.venue.seats, 1, this.crowdOpts);
+    const world = buildResort(this.scene, tmp.court);
+    this.venue = world;
+    this.resort = world.extras;
+    this.crowd = new Crowd(this.venue.seats, 1, { outfits: PASTEL_OUTFITS, hatChance: 0.35, memberOutfits: PASTEL_OUTFITS });
     this.scene.add(this.crowd.group);
 
-    const shadowTex = radialTexture('rgba(30,40,20,0.55)');
-    const p0: PalLook = { skin: 0xf2c6a0, hair: 0x5a3a22, hairStyle: 'short', headwear: 'visor', headwearColor: 0xffffff, shirt: 0xffffff, shorts: 0xffffff, shoes: 0xffffff, trim: ROYAL.claret, paddle: ROYAL.claret, eye: 0x3a6ea5, build: 0.45 };
-    const p1: PalLook = { skin: 0x8a5a3c, hair: 0x1b1b1b, hairStyle: 'ponytail', headwear: 'headband', headwearColor: ROYAL.navy, shirt: 0xffffff, shorts: 0xffffff, shoes: 0xffffff, trim: ROYAL.navy, paddle: ROYAL.navy, eye: 0x3b2a20, build: 0.4 };
-    this.pals = [new Pal(p0, shadowTex), new Pal(p1, shadowTex)];
+    const me = memberById(settings.memberId ?? 'theo');
+    const opp = this.opponentFor(me.id);
+    this.pals = [new Pal(me.look, this.shadowTex), new Pal(opp.look, this.shadowTex)];
     for (const p of this.pals) this.scene.add(p.root);
 
-    this.dj = new Pal({ skin: 0xc98e66, hair: 0x2b1d14, hairStyle: 'spiky', shirt: 0xf5efe1, shorts: ROYAL.navy, trousers: ROYAL.navy, shoes: 0x3b2a1e, trim: ROYAL.gold, build: 0.6 }, shadowTex);
+    this.dj = new Pal({ skin: 0xc98e66, hair: 0x2b1d14, hairStyle: 'short', headwear: 'headphones', headwearColor: 0x2f2b28, top: 'tee', shirt: 0xf6efe0, trim: 0x8fab83, shorts: 0x8fab83, bottom: 'shorts', shoes: 0xfbf8f2, build: 0.55 }, this.shadowTex);
     this.dj.paddle.visible = false;
     this.dj.ready = 0;
     this.dj.root.position.copy(this.venue.djAnchor);
-    this.dj.root.rotation.y = this.venue.djYaw ?? Math.PI;
     this.scene.add(this.dj.root);
 
-    const offSkins = [0xf2c6a0, 0xc98e66, 0x8a5a3c, 0xf6d3b3, 0xa4704b];
-    for (const o of this.lawn?.officials ?? []) {
-      const i = this.officials.length;
-      const look: PalLook =
-        o.kind === 'ballkid'
-          ? { skin: offSkins[i % 5], hair: [0x2b1d14, 0x9c6a3a, 0x1b1b1b][i % 3], hairStyle: i % 2 ? 'bob' : 'short', headwear: 'cap', headwearColor: ROYAL.bottle, shirt: ROYAL.bottle, shorts: ROYAL.bottle, shoes: 0xffffff, trim: ROYAL.gold }
-          : { skin: offSkins[i % 5], hair: 0x9a9a9a, hairStyle: 'short', headwear: 'panama', headwearColor: ROYAL.claret, shirt: ROYAL.navy, shorts: 0xe9e2cf, trousers: 0xe9e2cf, shoes: 0x3b2a1e, trim: ROYAL.claret, build: 0.7 };
-      const pal = new Pal(look, shadowTex);
-      pal.paddle.visible = false;
-      pal.ready = 0;
-      pal.root.rotation.y = o.yaw;
-      if (o.kind === 'ballkid') pal.crouch = true;
-      else pal.seated = o.seatHeight;
-      this.scene.add(pal.root);
-      this.officials.push({ o, pal });
-    }
+    this.bartender = new Pal({ skin: 0xf0c7a2, hair: 0x6b3a22, hairStyle: 'bun', top: 'polo', shirt: 0xfbf8f2, trim: 0x8fab83, shorts: 0x5f7d55, trousers: 0x5f7d55, bottom: 'trousers', shoes: 0x3b2a1e, lashes: true }, this.shadowTex);
+    this.bartender.paddle.visible = false;
+    this.bartender.ready = 0;
+    this.bartender.root.position.copy(this.resort.bartender.pos);
+    this.scene.add(this.bartender.root);
 
-    // Ball, ground shadow, speed-coloured ribbon trail, impact ring.
+    this.waiter = new Pal({ skin: 0x8a5a3c, hair: 0x1b1716, hairStyle: 'short', top: 'polo', shirt: 0xfbf8f2, trim: 0xc4b2e2, shorts: 0x41395a, trousers: 0x41395a, bottom: 'trousers', shoes: 0x3b2a1e, build: 0.5 }, this.shadowTex);
+    this.waiter.paddle.visible = false;
+    this.waiter.ready = 0;
+    const tray = new THREE.Group();
+    tray.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 20), new THREE.MeshStandardMaterial({ color: 0xd9c4a0, roughness: 0.5 })));
+    [0xf6b58f, 0xf7d98a, 0xb9dcb0].forEach((c, i) => {
+      const g = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.12, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.2 }));
+      g.position.set(Math.cos(i * 2.1) * 0.09, 0.07, Math.sin(i * 2.1) * 0.09);
+      tray.add(g);
+    });
+    tray.position.set(0, -0.02, -0.08);
+    this.waiter.handL.add(tray);
+    this.scene.add(this.waiter.root);
+
     const r = tmp.physics.ballRadius * BALL_VISUAL_SCALE;
-    this.ball = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), new THREE.MeshStandardMaterial({ color: PALETTE.ball, emissive: 0x7f8f00, emissiveIntensity: 0.45, roughness: 0.45 }));
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), new THREE.MeshStandardMaterial({ color: PALETTE.ball, emissive: 0x8f9f00, emissiveIntensity: 0.4, roughness: 0.45 }));
     this.ball.castShadow = true;
     this.scene.add(this.ball);
-    this.ballShadow = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(20,30,10,0.65)'), transparent: true, depthWrite: false }));
+    this.ballShadow = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), new THREE.MeshBasicMaterial({ map: radialTexture('rgba(40,40,20,0.6)'), transparent: true, depthWrite: false }));
     this.ballShadow.rotation.x = -Math.PI / 2;
     this.scene.add(this.ballShadow);
-    this.trail = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    const tg = new THREE.BufferGeometry();
+    tg.setAttribute('position', new THREE.BufferAttribute(this.trailPos, 3));
+    tg.setAttribute('color', new THREE.BufferAttribute(this.trailCol, 3));
+    const idx: number[] = [];
+    for (let i = 0; i < 13; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+    tg.setIndex(idx);
+    this.trail = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     this.trail.frustumCulled = false;
     this.scene.add(this.trail);
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.2, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
     this.scene.add(this.ring);
+    // Timing cue: a ring under your player that fills gold at the moment to swing.
+    this.cue = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.68, 40), new THREE.MeshBasicMaterial({ color: 0xffd95a, transparent: true, opacity: 0, depthWrite: false }));
+    this.cue.rotation.x = -Math.PI / 2;
+    this.scene.add(this.cue);
 
     this.machine = new THREE.Group();
-    const mBody = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), new THREE.MeshStandardMaterial({ color: ROYAL.bottle, roughness: 0.5 }));
+    const mBody = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), new THREE.MeshStandardMaterial({ color: 0x9db592, roughness: 0.5 }));
     mBody.position.y = 0.35;
     mBody.castShadow = true;
-    const hopper = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.25, 0.4, 16, 1, true), new THREE.MeshStandardMaterial({ color: ROYAL.ivory, side: THREE.DoubleSide }));
-    hopper.position.y = 0.9;
-    this.machine.add(mBody, hopper);
-    this.machine.position.set(0, 0, -tmp.court.halfLength - 0.6);
+    this.machine.add(mBody);
+    this.machine.position.set(0, 0.12, -tmp.court.halfLength - 0.6);
     this.machine.visible = false;
     this.scene.add(this.machine);
 
-    const confettiColors = [ROYAL.gold, 0xffffff, ROYAL.claret, 0x8fd3ff, 0xffd166, 0x9be38d];
-    this.confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.09, 0.15), new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.6 }), 600);
+    const confettiColors = [0xc4b2e2, 0x9db592, 0xf3df8e, 0xfbf8f2, 0xf2c9d6, 0xa8c8e0];
+    this.confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.09, 0.15), new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.6 }), 400);
     const col = new THREE.Color();
-    for (let i = 0; i < 600; i++) {
+    for (let i = 0; i < 400; i++) {
       this.confetti.setColorAt(i, col.setHex(confettiColors[i % confettiColors.length]));
       this.confettiState.push({ p: new THREE.Vector3(0, -10, 0), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3() });
     }
@@ -242,53 +250,64 @@ export class Game {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.gtao = new GTAOPass(this.scene, this.camera, 1, 1);
-    this.gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.5, thickness: 1, scale: 1.0, samples: 12 });
-    this.composer.addPass(this.gtao);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.22, 0.5, 0.9);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.4, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
-    this.composer.addPass(new SMAAPass(1, 1));
 
     this.applySettings(settings);
-    if (this.lawn && settings.graphics !== 'low') {
-      void this.lawn.enhance(this.renderer, this.scene).then(() => {
-        this.assetsReady = true;
-        this.onAssetsReady?.();
-      });
-    } else this.assetsReady = true;
     window.addEventListener('resize', () => this.resize());
     this.resize();
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
-  /** QA video capture: stop the rAF loop; frames are then driven explicitly with step(). */
+  private opponentFor(id: string) {
+    const others = MEMBERS.filter((m) => m.id !== id);
+    const pick = { easy: 0, medium: 2, hard: 4 }[this.settings.difficulty] ?? 0;
+    return others[pick % others.length];
+  }
+
+  /** Swap the player's (and opponent's) member. */
+  setMember(id: string): void {
+    const me = memberById(id);
+    const opp = this.opponentFor(id);
+    for (const [i, look] of [
+      [0, me.look],
+      [1, opp.look],
+    ] as [number, PalLook][]) {
+      const old = this.pals[i];
+      this.scene.remove(old.root);
+      const p = new Pal(look, this.shadowTex);
+      p.root.position.copy(old.root.position);
+      p.root.rotation.copy(old.root.rotation);
+      this.pals[i] = p;
+      this.scene.add(p.root);
+    }
+  }
+
   captureMode(): void {
     this.renderer.setAnimationLoop(null);
   }
 
-  /** QA video capture: render exactly one frame (time comes from performance.now, which the capture tool virtualises). */
   step(): void {
     this.frame();
   }
 
-  /** QA: advance with a fixed timestep per rendered frame (deterministic capture of animation). */
   setFixedStep(dt: number): void {
     this.fixedDt = dt;
   }
 
   applySettings(s: Settings): void {
     this.settings = s;
-    const pr = s.graphics === 'low' ? 1 : s.graphics === 'medium' ? Math.min(devicePixelRatio, 1.5) : Math.min(devicePixelRatio, 2);
+    // Performance: modest pixel ratios; post-processing only on High.
+    const pr = s.graphics === 'low' ? 0.85 : s.graphics === 'medium' ? Math.min(devicePixelRatio, 1.25) : Math.min(devicePixelRatio, 1.75);
     this.renderer.setPixelRatio(pr);
-    this.venue.sun.shadow.mapSize.setScalar(s.graphics === 'high' ? 4096 : s.graphics === 'medium' ? 2048 : 1024);
+    this.venue.sun.shadow.mapSize.setScalar(s.graphics === 'low' ? 1024 : 2048);
     this.venue.sun.shadow.map?.dispose();
     (this.venue.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
-    this.gtao.enabled = s.graphics === 'high';
-    this.bloom.enabled = s.graphics !== 'low';
-    const density = s.graphics === 'low' ? 0.4 : s.graphics === 'medium' ? 0.7 : 1;
+    this.renderer.shadowMap.type = s.graphics === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    const density = s.graphics === 'low' ? 0.45 : s.graphics === 'medium' ? 0.8 : 1;
     this.scene.remove(this.crowd.group);
-    this.crowd = new Crowd(this.venue.seats, density, this.crowdOpts);
+    this.crowd = new Crowd(this.venue.seats, density, { outfits: PASTEL_OUTFITS, hatChance: 0.35, memberOutfits: PASTEL_OUTFITS });
     this.scene.add(this.crowd.group);
     this.audio.setVolumes({ master: s.master, music: s.music, crowd: s.crowd, sfx: s.sfx });
     this.resize();
@@ -301,7 +320,7 @@ export class Game {
     this.composer.setSize(w, h);
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.camera.aspect = w / h;
-    this.camera.fov = w / h < 1 ? 62 : 44;
+    this.camera.fov = w / h < 1 ? 60 : 42;
     this.camera.updateProjectionMatrix();
   }
 
@@ -311,8 +330,9 @@ export class Game {
     void this.audio.resume().catch(() => {});
     this.audio.startMusic();
     const s = this.settings;
-    const opponent = { easy: 'Coco', medium: 'Rafa', hard: 'Ines' }[s.difficulty];
-    this.names = cfg.mode === 'practice' ? [s.playerName, 'Ball machine'] : [s.playerName, opponent];
+    const me = memberById(s.memberId ?? 'theo');
+    const opp = this.opponentFor(me.id);
+    this.names = cfg.mode === 'practice' ? [s.playerName === 'You' ? me.name : s.playerName, 'Ball machine'] : [s.playerName === 'You' ? me.name : s.playerName, opp.name];
     this.sim = new MatchSim({
       mode: cfg.mode,
       assist: [cfg.autoplay ? 'classic' : s.assist, 'classic'],
@@ -328,20 +348,23 @@ export class Game {
     this.resultAt = -1;
     this.paused = false;
     this.hitStop = this.slowMo = 0;
+    this.simAcc = 0;
+    this.hits = 0;
     this.input.enabled = !cfg.autoplay;
     this.machine.visible = cfg.mode === 'practice';
     this.pals[1].root.visible = cfg.mode === 'match';
     this.ui?.scoreCard(null);
-    this.updateBoard();
+    this.ui?.courtLabels([]);
     this.ui?.score(this.sim, this.names);
     this.ui?.rally(0);
+    this.coachDone = !!cfg.autoplay || this.coachSeen();
     if (cfg.skipIntro || this.settings.reducedMotion) this.beginPlay();
     else {
       this.phase = 'intro';
       this.introT = 0;
       this.camMode = 'intro';
       this.camT = 0;
-      this.ui?.titleCard({ title: this.lawn ? 'The Members’ Lawn' : 'Sunset Rooftop Club', sub: cfg.mode === 'practice' ? 'Practice session' : `Singles · first to ${s.pointsToWin}`, names: this.names });
+      this.ui?.titleCard({ title: COURTS.garden.name, sub: cfg.mode === 'practice' ? 'Practice session' : `Singles · first to ${s.pointsToWin}`, names: this.names });
       this.audio.jingle('intro');
       this.crowd.setState('applause', 0.8);
       this.audio.crowd('applause', 0.8);
@@ -349,7 +372,6 @@ export class Game {
     }
   }
 
-  /** Skip the intro (tap / key during the fly-in). */
   skipIntro(): void {
     if (this.phase === 'intro') this.beginPlay();
   }
@@ -365,6 +387,7 @@ export class Game {
       this.ui?.banner('Ready?', 'ready');
       window.setTimeout(() => this.phase === 'play' && this.ui?.banner('Play!', 'play'), 900);
     }
+    if (!this.coachDone) window.setTimeout(() => this.setCoach(this.sim?.rules.state.server === 0 ? 'serve' : 'swing'), 1600);
   }
 
   exitToMenu(): void {
@@ -372,52 +395,81 @@ export class Game {
     this.director = null;
     this.paused = false;
     this.phase = 'menu';
-    this.camMode = 'menu';
+    this.camMode = 'map';
     this.machine.visible = false;
     this.pals[1].root.visible = true;
     this.ui?.titleCard(null);
     this.ui?.scoreCard(null);
+    this.setCoach(null);
     window.speechSynthesis?.cancel();
+  }
+
+  private coachSeen(): boolean {
+    try {
+      return localStorage.getItem('rally-club.coached') === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private setCoach(step: 'serve' | 'swing' | 'aim' | null): void {
+    if (step && this.coachDone) return;
+    this.coachStep = step;
+    this.ui?.coach(step);
+  }
+
+  private advanceCoach(): void {
+    if (this.coachDone || !this.coachStep) return;
+    if (this.coachStep === 'serve') this.setCoach('swing');
+    else if (this.coachStep === 'swing') this.setCoach('aim');
+    else {
+      this.coachDone = true;
+      this.setCoach(null);
+      try {
+        localStorage.setItem('rally-club.coached', '1');
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   // ---------------------------------------------------------------- frame
 
   private frame(): void {
-    const real = this.fixedDt > 0 ? this.fixedDt : Math.min(this.clock.getDelta(), 0.05);
+    const real = this.fixedDt > 0 ? this.fixedDt : Math.min(this.clock.getDelta(), 0.1);
     const beat = this.audio.beatPhase();
     const sim = this.sim;
 
-    // Game-feel time: hit-stop freezes the world briefly; slow-mo stretches perfect contacts.
     let dt = real;
     if (this.hitStop > 0) {
       this.hitStop -= real;
       dt = 0;
     } else if (this.slowMo > 0) {
       this.slowMo -= real;
-      dt = real * 0.35;
+      dt = real * 0.4;
     }
 
     if (sim && !this.paused) {
+      const raw = this.input.poll();
+      const human: ControlInput = { moveX: raw.moveX, moveZ: raw.moveZ, swing: raw.swing ? this.autoShot(raw.swing.shot, raw.swing.aim) : null };
+      if (human.swing) this.pendingHuman = human;
       if (this.phase === 'intro') {
         this.introT += real;
         if (this.introT > 4.2) this.beginPlay();
-        this.input.poll();
-      } else {
-        const human: ControlInput = this.input.poll();
-        if (dt > 0) {
-          for (let i = 0; i < this.timeScale; i++) {
-            const inputs: [ControlInput, ControlInput] = [
-              this.ais[0] ? this.ais[0].think(sim, dt) : i === 0 ? human : { ...human, swing: null },
-              this.ais[1] ? this.ais[1].think(sim, dt) : NO_INPUT,
-            ];
-            sim.update(dt, inputs);
-            this.stats.durationS += dt;
-            for (const e of sim.drainEvents()) this.onSimEvent(e);
-            this.director?.tick(dt);
-          }
-        } else if (human.swing) {
-          // A press during hit-stop still counts on the next frame.
-          this.input.press(human.swing.shot);
+      } else if (dt > 0) {
+        // Fixed-tick simulation: AI thinks every tick, so it never misses because of a slow frame.
+        this.simAcc += dt * this.timeScale;
+        let ticks = 0;
+        while (this.simAcc >= SIM_DT && ticks < 60) {
+          const hIn: ControlInput = this.pendingHuman ?? { moveX: human.moveX, moveZ: human.moveZ, swing: null };
+          this.pendingHuman = null;
+          const inputs: [ControlInput, ControlInput] = [this.ais[0] ? this.ais[0].think(sim, SIM_DT) : hIn, this.ais[1] ? this.ais[1].think(sim, SIM_DT) : NO_INPUT];
+          sim.update(SIM_DT, inputs);
+          this.stats.durationS += SIM_DT;
+          for (const e of sim.drainEvents()) this.onSimEvent(e);
+          this.director?.tick(SIM_DT);
+          this.simAcc -= SIM_DT;
+          ticks++;
         }
       }
       if (this.pointCutAt > 0 && performance.now() >= this.pointCutAt) {
@@ -438,10 +490,26 @@ export class Game {
 
     this.syncScene(dt, real, beat);
     this.updateCamera(real);
-    this.audio.setSpatial(this.venue.djAnchor, this.camera.position, this.camera.getWorldDirection(new THREE.Vector3()));
-    if (this.settings.graphics !== 'low') this.composer.render(real);
+    this.audio.setSpatial(this.venue.djAnchor, this.camera.position, this.camera.getWorldDirection(this.v1));
+    if (this.settings.graphics === 'high') this.composer.render(real);
     else this.renderer.render(this.scene, this.camera);
     this.onFrame?.();
+  }
+
+  /** One-button play: pick the shot from context (dink at the kitchen, drive elsewhere); aim from timing. */
+  private autoShot(shot: StrokeShot | 'auto', aim: number): { shot: StrokeShot; aim: number; timingAim?: boolean } {
+    const sim = this.sim;
+    if (shot !== 'auto' || !sim) return { shot: shot === 'auto' ? 'drive' : shot, aim };
+    const me = sim.players[0];
+    const plan = sim.intercept(0);
+    const nearKitchen = Math.abs(me.pos.z) < sim.court.nvzDepth + 1.4;
+    const low = plan ? plan.contact.y < 0.85 : true;
+    const opp = sim.players[1];
+    const oppAtNet = Math.abs(opp.pos.z) < sim.court.nvzDepth + 1.2;
+    let pick: StrokeShot = 'drive';
+    if (nearKitchen && low) pick = 'dink';
+    else if (oppAtNet && !nearKitchen && Math.random() < 0.25) pick = 'lob';
+    return { shot: pick, aim: 0, timingAim: true };
   }
 
   private onSimEvent(e: SimEvent): void {
@@ -454,27 +522,32 @@ export class Game {
         pal.play(e.stroke === 'serve' ? 'serve' : e.stroke === 'backhand' ? 'swing_bh' : 'swing_fh');
         this.pals[otherSide(e.side)].splitStep();
         this.audio.paddle(e.speed, e.perfect, panOf(sim.ball.p.x));
-        // Game feel: freeze-frame on contact, impact ring, camera kick, squash.
         const motion = !this.settings.reducedMotion;
-        this.hitStop = motion ? (e.perfect ? 0.11 : 0.055) : 0;
-        if (e.perfect && motion) this.slowMo = 0.3;
+        this.hitStop = motion ? (e.perfect ? 0.1 : 0.05) : 0;
+        if (e.perfect && motion) this.slowMo = 0.25;
         this.ringT = 0.35;
         this.ring.position.copy(this.ball.position);
         this.squash = 1;
         this.squashDir.set(sim.ball.v.x, sim.ball.v.y, sim.ball.v.z).normalize();
-        if (this.settings.cameraShake && motion && e.side === this.camFocusSide()) this.kick = e.perfect ? 0.22 : 0.1;
+        if (this.settings.cameraShake && motion && e.side === 0) this.kick = e.perfect ? 0.2 : 0.08;
+        if (e.side === 0) {
+          this.hits++;
+          if (e.stroke === 'serve' && this.coachStep === 'serve') this.advanceCoach();
+          else if (e.stroke !== 'serve' && this.coachStep === 'swing') this.advanceCoach();
+          else if (e.stroke !== 'serve' && this.coachStep === 'aim' && this.hits >= 3) this.advanceCoach();
+        }
         if (e.perfect) {
           this.stats.perfect[e.side]++;
           pal.setExpression('determined', 0.8);
           this.popupAt(this.ball.position, 'PERFECT!', 'perfect');
-        } else if (e.quality > 0.7 && e.stroke !== 'serve' && e.side === 0) this.popupAt(this.ball.position, 'NICE SHOT!', 'nice');
+        } else if (e.quality > 0.7 && e.stroke !== 'serve' && e.side === 0) this.popupAt(this.ball.position, 'NICE!', 'nice');
         break;
       }
       case 'whiff':
         this.pals[e.side].play('swing_fh');
         if (e.side === 0) {
           this.pals[0].setExpression('surprised', 1);
-          this.popupAt(this.pals[0].root.position.clone().setY(1.6), 'WHIFF!', 'miss');
+          this.popupAt(this.v1.copy(this.pals[0].root.position).setY(1.8), 'TOO EARLY!', 'miss');
         }
         break;
       case 'ball_bounce':
@@ -510,15 +583,13 @@ export class Game {
         this.pals[l].setExpression('sad', 2.2);
         window.setTimeout(() => {
           if (this.phase !== 'play') return;
-          this.pals[w].play('fistpump');
+          this.pals[w].play(big ? 'fistpump' : Math.random() < 0.5 ? 'laugh' : 'fistpump');
           this.pals[l].play('dejected');
         }, 350);
         if (e.ace) {
           this.stats.aces[e.server]++;
           this.ui?.toast('ACE!', e.server === 0 ? 'good' : 'bad');
-        } else if (e.reason === 'double_bounce') {
-          this.ui?.toast(w === 0 ? 'POINT!' : 'MISSED', w === 0 ? 'good' : 'bad');
-        }
+        } else if (e.reason === 'double_bounce') this.ui?.toast(w === 0 ? 'POINT!' : 'MISSED', w === 0 ? 'good' : 'bad');
         this.audio.jingle(w === 0 ? 'point_win' : 'point_lose');
         this.lastScorer = w;
         if (sim.mode === 'match' && sim.rules.state.phase !== 'game_over') {
@@ -534,20 +605,21 @@ export class Game {
         break;
       }
       case 'point_reset':
-        this.updateBoard();
         this.ui?.scoreCard(null);
         this.ui?.score(sim, this.names);
         this.ui?.rally(0);
         this.camMode = 'follow';
         this.camT = 0;
+        if (this.coachStep === 'swing' && sim.rules.state.server === 0) this.ui?.coach('serve');
+        else if (this.coachStep) this.ui?.coach(this.coachStep);
         break;
       case 'game_over': {
-        this.updateBoard();
         this.winner = e.winner;
         this.phase = 'celebrate';
         this.camMode = 'celebrate';
         this.camT = 0;
         this.ui?.scoreCard(null);
+        this.setCoach(null);
         this.ui?.banner('Game, Set & Match', 'game', this.names[e.winner]);
         this.pals[e.winner].setExpression('ecstatic', 99);
         this.pals[e.winner].play('celebrate');
@@ -556,7 +628,7 @@ export class Game {
         loser.play('dejected');
         window.setTimeout(() => {
           loser.setExpression('happy', 99);
-          loser.play('clap'); // good sportsmanship
+          loser.play('clap');
         }, 2200);
         this.audio.jingle(e.winner === 0 ? 'victory' : 'defeat');
         this.resultAt = performance.now() + 5200;
@@ -566,31 +638,18 @@ export class Game {
       case 'practice_result':
         this.ui?.practice(e.streak, e.best, sim.practice.good, sim.practice.feeds);
         this.ui?.toast(e.good ? 'GOOD!' : 'MISS', e.good ? 'good' : 'bad');
-        if (e.good) this.pals[0].setExpression(e.streak >= 5 ? 'ecstatic' : 'happy', 1.2);
-        else this.pals[0].setExpression('sad', 1);
+        this.pals[0].setExpression(e.good ? (e.streak >= 5 ? 'ecstatic' : 'happy') : 'sad', 1.2);
         break;
       default:
         break;
     }
   }
 
-  private camFocusSide(): Side {
-    return 0;
-  }
-
   private popupAt(world: THREE.Vector3, text: string, tone: 'nice' | 'perfect' | 'ace' | 'miss'): void {
-    const v = world.clone().project(this.camera);
+    const v = this.v2.copy(world).project(this.camera);
     if (v.z > 1) return;
     const el = this.renderer.domElement;
     this.ui?.popup(text, ((v.x + 1) / 2) * el.clientWidth, ((1 - v.y) / 2) * el.clientHeight, tone);
-  }
-
-  private updateBoard(): void {
-    const sim = this.sim;
-    if (!sim || !this.lawn) return;
-    const st = sim.rules.state;
-    const call = st.phase === 'game_over' ? `Game · ${this.names[st.winner ?? 0]}` : sim.mode === 'practice' ? 'Practice session' : `Score ${sim.rules.scoreCall()}`;
-    this.lawn.setScoreboard(this.names, [st.score[0], st.score[1]], sim.mode === 'match' ? st.server : -1, call);
   }
 
   private umpireCall(e: Extract<SimEvent, { type: 'point' }>): void {
@@ -605,13 +664,9 @@ export class Game {
   private pickVoices(): void {
     const all = window.speechSynthesis?.getVoices() ?? [];
     if (!all.length) return;
-    const gb = all.filter((v) => /en[-_]GB/i.test(v.lang));
     const en = all.filter((v) => /^en/i.test(v.lang));
-    const pick = (re: RegExp, pool: SpeechSynthesisVoice[]) => pool.find((v) => re.test(v.name));
-    this.voices = {
-      commentary: pick(/Daniel|Arthur|George|UK English Male|Ryan|Oliver/i, gb) ?? gb[0] ?? en[0],
-      umpire: pick(/Serena|Kate|Martha|Libby|Sonia|UK English Female/i, gb) ?? gb[1] ?? gb[0] ?? en[0],
-    };
+    const pick = (re: RegExp) => en.find((v) => re.test(v.name));
+    this.voices = { commentary: pick(/Daniel|Arthur|George|Ryan|Oliver|Male/i) ?? en[0], umpire: pick(/Serena|Kate|Martha|Libby|Sonia|Samantha|Female/i) ?? en[1] ?? en[0] };
   }
 
   private speak(text: string, who: 'umpire' | 'commentary', interrupt = false): void {
@@ -620,7 +675,6 @@ export class Game {
     const v = this.voices?.[who];
     if (v) u.voice = v;
     u.rate = who === 'umpire' ? 0.95 : 1.05;
-    u.pitch = who === 'umpire' ? 1.05 : 1.0;
     u.volume = Math.min(1, this.settings.master * 1.1);
     if (interrupt) speechSynthesis.cancel();
     speechSynthesis.speak(u);
@@ -652,14 +706,14 @@ export class Game {
         this.ui?.energy(c.value);
         break;
       default:
-        break; // camera cues are handled by the presentation state machine
+        break;
     }
   }
 
   private burstConfetti(): void {
     if (this.settings.reducedMotion) return;
     this.confetti.visible = true;
-    this.confettiTime = 8;
+    this.confettiTime = 7;
     for (const c of this.confettiState) {
       c.p.set((Math.random() - 0.5) * 8, 6 + Math.random() * 3, (Math.random() - 0.5) * 12);
       c.v.set((Math.random() - 0.5) * 5, 1 + Math.random() * 4, (Math.random() - 0.5) * 5);
@@ -673,7 +727,9 @@ export class Game {
   private syncScene(dt: number, real: number, beat: number): void {
     const sim = this.sim;
     const reduced = this.settings.reducedMotion;
-    const ballWorld = sim ? new THREE.Vector3(sim.ball.p.x, sim.ball.p.y, sim.ball.p.z) : null;
+    const ballWorld = sim ? this.v1.set(sim.ball.p.x, sim.ball.p.y, sim.ball.p.z) : null;
+    const pdt = dt > 0 ? dt : 0.0001;
+    let cueOpacity = 0;
 
     if (sim) {
       const st = sim.rules.state;
@@ -683,39 +739,46 @@ export class Game {
         pal.serving = sim.mode === 'match' && st.phase === 'awaiting_serve' && st.server === side;
         const active = this.phase === 'play' && (st.phase === 'in_play' || st.phase === 'awaiting_serve');
         pal.ready += ((active ? 1 : 0.35) - pal.ready) * Math.min(1, real * 6);
-        // Anticipation: coil into the backswing as the ball approaches (Wii-style auto-prep).
         if (sim.ballIncomingFor(side)) {
           const plan = sim.intercept(side);
           if (plan) {
             const remaining = plan.timeToContact - (sim.time - plan.computedAt);
             const right = (plan.contact.x - p.pos.x) * sideSign(side);
-            const amount = THREE.MathUtils.clamp(1 - (remaining - 0.12) / 0.5, 0, 1);
-            pal.anticipate(right >= -0.05 ? 'fh' : 'bh', amount);
+            pal.anticipate(right >= -0.05 ? 'fh' : 'bh', THREE.MathUtils.clamp(1 - (remaining - 0.12) / 0.5, 0, 1));
+            // Timing cue under your player: brightest at the ideal moment to press swing.
+            if (side === 0 && !this.ais[0] && (this.settings.assist !== 'precision' || !this.coachDone)) {
+              const err = Math.abs(remaining - SWING_IDEAL);
+              cueOpacity = remaining < 0.9 ? THREE.MathUtils.clamp(1 - err / 0.5, 0.15, 1) : 0;
+              const s = 1 + Math.max(0, remaining - SWING_IDEAL) * 2.2;
+              this.cue.scale.setScalar(s);
+              (this.cue.material as THREE.MeshBasicMaterial).color.setHex(err < 0.08 ? 0xffd95a : 0xffffff);
+            }
           }
         } else pal.anticipate('fh', 0);
         pal.lookAt(this.phase === 'intro' ? this.camera.position : ballWorld);
-        pal.update(dt > 0 ? dt : 0.0001, { x: p.pos.x, z: p.pos.z, yaw: side === 0 ? 0 : Math.PI, speed: Math.hypot(p.vel.x, p.vel.z) });
+        pal.update(pdt, { x: p.pos.x, z: p.pos.z, yaw: side === 0 ? 0 : Math.PI, speed: Math.hypot(p.vel.x, p.vel.z), vx: p.vel.x, vz: p.vel.z });
       }
+      this.cue.position.set(sim.players[0].pos.x, 0.14, sim.players[0].pos.z);
 
-      // Ball with squash & stretch.
       const bp = sim.ball.p;
       const hidden = bp.y < -1 || (sim.mode === 'practice' && sim.ballHeld);
       this.ball.visible = !hidden;
       const r = sim.physics.ballRadius * BALL_VISUAL_SCALE;
-      this.ball.position.set(bp.x, Math.max(bp.y, r), bp.z);
+      this.ball.position.set(bp.x, Math.max(bp.y, r + 0.12), bp.z);
       const speed = Math.hypot(sim.ball.v.x, sim.ball.v.y, sim.ball.v.z);
       const stretch = Math.min(0.5, speed / 40);
       this.squash = Math.max(0, this.squash - real * 6);
       const s = 1 + stretch - this.squash * 0.35;
-      const dir = this.squash > 0.05 ? this.squashDir : new THREE.Vector3(sim.ball.v.x, sim.ball.v.y, sim.ball.v.z).normalize();
+      const dir = this.squash > 0.05 ? this.squashDir : this.v2.set(sim.ball.v.x, sim.ball.v.y, sim.ball.v.z).normalize();
       if (dir.lengthSq() > 0.5) this.ball.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-      this.ball.scale.set(1 / Math.sqrt(Math.max(0.5, s)), 1 / Math.sqrt(Math.max(0.5, s)), s);
+      const inv = 1 / Math.sqrt(Math.max(0.5, s));
+      this.ball.scale.set(inv, inv, s);
       this.ballShadow.visible = !hidden;
-      this.ballShadow.position.set(bp.x, 0.02, bp.z);
+      this.ballShadow.position.set(bp.x, 0.145, bp.z);
       this.ballShadow.scale.setScalar(Math.max(0.35, 1 - bp.y * 0.22));
       this.updateTrail(!hidden && !sim.ballHeld && !reduced, speed);
     } else {
-      // Menu diorama: two pals trading pretend strokes.
+      // Club map: the two members warm up on the Garden Court.
       this.menuSwingClock += real;
       const t = performance.now() / 1000;
       for (const side of [0, 1] as Side[]) {
@@ -727,16 +790,17 @@ export class Game {
           this.pals[otherSide(side)].splitStep();
           this.menuSwingClock = 0;
         }
+        pal.lookAt(this.v2.set(0, 1.2, 0));
         const x = Math.sin(t * 0.7 + side * 2) * 1.4;
-        pal.lookAt(new THREE.Vector3(0, 1.2, 0));
-        pal.update(real, { x, z: sideSign(side) * 5.4, yaw: side === 0 ? 0 : Math.PI, speed: Math.abs(Math.cos(t * 0.7 + side * 2)) * 1.2 });
+        pal.update(real, { x, z: sideSign(side) * 5.4, yaw: side === 0 ? 0 : Math.PI, speed: Math.abs(Math.cos(t * 0.7 + side * 2)) * 1.2, vx: Math.cos(t * 0.7 + side * 2), vz: 0 });
       }
       this.ball.visible = false;
       this.ballShadow.visible = false;
       this.trail.visible = false;
+      this.updateCourtLabels();
     }
+    (this.cue.material as THREE.MeshBasicMaterial).opacity += (cueOpacity * 0.85 - (this.cue.material as THREE.MeshBasicMaterial).opacity) * Math.min(1, real * 12);
 
-    // Impact ring.
     if (this.ringT > 0) {
       this.ringT -= real;
       const k = 1 - this.ringT / 0.35;
@@ -745,7 +809,7 @@ export class Game {
       (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - k);
     } else (this.ring.material as THREE.MeshBasicMaterial).opacity = 0;
 
-    // DJ grooves on the beat.
+    // DJ grooves on the beat (headphones on, one hand on the deck).
     const pulse = Math.pow(1 - beat, 3);
     this.dj.lookAt(ballWorld ?? this.camera.position);
     this.dj.update(real, { x: this.venue.djAnchor.x, z: this.venue.djAnchor.z, yaw: this.venue.djYaw ?? Math.PI, speed: 0 });
@@ -753,22 +817,23 @@ export class Game {
     this.dj.head.rotation.x += pulse * 0.25;
     this.dj.shR.rotation.set(1.3, 0, 0.3);
     this.dj.elR.rotation.x = 1.0 + Math.sin(performance.now() / 260) * 0.25;
-    this.dj.shL.rotation.set(1.2 + pulse * 0.3, 0, -0.3);
-    this.dj.elL.rotation.x = 0.9;
+    this.dj.shL.rotation.set(2.0 + pulse * 0.3, 0, -0.5);
+    this.dj.elL.rotation.x = 1.6;
     this.venue.djLights.forEach((m, i) => {
-      (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.4 + (i % 2 === Math.floor(performance.now() / 500) % 2 ? pulse * 2.5 : 0.2);
+      (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5 + (i % 2 === Math.floor(performance.now() / 500) % 2 ? pulse * 1.8 : 0.2);
     });
-    this.venue.djBooth.children.forEach((c) => {
-      if (c.name === 'platter') c.rotation.y += real * 3.5;
-    });
+
+    // Bartender polishes a glass; the waiter walks the terrace with a tray of drinks.
+    this.bartender.lookAt(ballWorld ?? this.camera.position);
+    this.bartender.update(real, { x: this.resort.bartender.pos.x, z: this.resort.bartender.pos.z, yaw: this.resort.bartender.yaw, speed: 0 });
+    const tt = performance.now() / 1000;
+    this.bartender.shR.rotation.set(1.2, 0, -0.4 + Math.sin(tt * 6) * 0.2);
+    this.bartender.elR.rotation.x = 1.3;
+    this.bartender.shL.rotation.set(1.1, 0, 0.3);
+    this.bartender.elL.rotation.x = 1.2;
+    this.updateWaiter(real);
 
     this.crowd.update(real, beat, reduced);
-
-    for (const { o, pal } of this.officials) {
-      pal.lookAt(ballWorld ?? new THREE.Vector3(0, 1, 0));
-      pal.update(real, { x: o.pos.x, z: o.pos.z, yaw: o.yaw, speed: 0 });
-    }
-    this.lawn?.tick(new Date());
 
     if (this.confettiTime > 0) {
       this.confettiTime -= real;
@@ -779,8 +844,8 @@ export class Game {
         c.v.y -= 2.0 * real;
         c.v.multiplyScalar(1 - 0.9 * real);
         c.p.addScaledVector(c.v, real);
-        if (c.p.y < 0.02) {
-          c.p.y = 0.02;
+        if (c.p.y < 0.15) {
+          c.p.y = 0.15;
           c.v.set(0, 0, 0);
         } else {
           c.r.x += c.w.x * real;
@@ -794,52 +859,84 @@ export class Game {
     }
   }
 
-  /** Tapered ribbon behind the ball; colour heats from white to gold to coral with speed. */
+  private updateWaiter(dt: number): void {
+    const path = this.resort.walkPaths[0];
+    let total = 0;
+    const segs: number[] = [];
+    for (let i = 0; i < path.length; i++) {
+      const a = path[i];
+      const b = path[(i + 1) % path.length];
+      const d = a.distanceTo(b);
+      segs.push(d);
+      total += d;
+    }
+    this.waiterT = (this.waiterT + dt * 1.1) % total;
+    let d = this.waiterT;
+    let i = 0;
+    while (d > segs[i]) {
+      d -= segs[i];
+      i = (i + 1) % segs.length;
+    }
+    const a = path[i];
+    const b = path[(i + 1) % path.length];
+    const k = d / segs[i];
+    const x = a.x + (b.x - a.x) * k;
+    const z = a.z + (b.z - a.z) * k;
+    const yaw = Math.atan2(-(b.x - a.x), -(b.z - a.z));
+    this.waiter.update(dt, { x, z, yaw, speed: 1.1, vx: (b.x - a.x) / segs[i], vz: (b.z - a.z) / segs[i] });
+    // Tray arm held level.
+    this.waiter.shL.rotation.set(1.35, 0, -0.25);
+    this.waiter.elL.rotation.x = -0.1;
+  }
+
+  private updateCourtLabels(): void {
+    if (!this.ui) return;
+    const el = this.renderer.domElement;
+    const list = this.resort.courts.map(({ theme, anchor }) => {
+      const v = this.v2.set(anchor.x, 3, anchor.z).project(this.camera);
+      return { id: theme.id, x: ((v.x + 1) / 2) * el.clientWidth, y: ((1 - v.y) / 2) * el.clientHeight, visible: v.z < 1 && this.camMode === 'map' };
+    });
+    this.ui.courtLabels(list);
+  }
+
   private updateTrail(show: boolean, speed: number): void {
     this.trail.visible = show;
     if (!show) {
       this.trailPts.length = 0;
       return;
     }
-    this.trailPts.unshift(this.ball.position.clone());
-    if (this.trailPts.length > 14) this.trailPts.length = 14;
+    const head = this.trailPts.length >= 14 ? this.trailPts.pop()! : new THREE.Vector3();
+    this.trailPts.unshift(head.copy(this.ball.position));
     this.trailSpeed += (speed - this.trailSpeed) * 0.3;
     const n = this.trailPts.length;
-    if (n < 2) return;
+    const hot = new THREE.Color().lerpColors(new THREE.Color(0xfff7c2), new THREE.Color(0xffa36b), THREE.MathUtils.clamp((this.trailSpeed - 8) / 12, 0, 1));
+    const tangent = new THREE.Vector3();
     const camDir = new THREE.Vector3();
-    const pos = new Float32Array(n * 2 * 3);
-    const colors = new Float32Array(n * 2 * 3);
-    const hot = new THREE.Color().lerpColors(new THREE.Color(0xfff7c2), new THREE.Color(0xff8a3d), THREE.MathUtils.clamp((this.trailSpeed - 8) / 12, 0, 1));
-    for (let i = 0; i < n; i++) {
-      const p = this.trailPts[i];
+    const side = new THREE.Vector3();
+    for (let i = 0; i < 14; i++) {
+      const p = this.trailPts[Math.min(i, n - 1)];
       const next = this.trailPts[Math.min(n - 1, i + 1)];
-      const prev = this.trailPts[Math.max(0, i - 1)];
-      const tangent = new THREE.Vector3().subVectors(prev, next).normalize();
+      const prev = this.trailPts[Math.min(n - 1, Math.max(0, i - 1))];
+      tangent.subVectors(prev, next);
+      if (tangent.lengthSq() < 1e-8) tangent.set(0, 0, 1);
+      tangent.normalize();
       camDir.subVectors(this.camera.position, p).normalize();
-      const side = new THREE.Vector3().crossVectors(tangent, camDir).normalize();
-      const w = 0.055 * (1 - i / n);
-      const k = 1 - i / n;
-      for (let s = 0; s < 2; s++) {
-        const o = (i * 2 + s) * 3;
-        const sg = s === 0 ? 1 : -1;
-        pos[o] = p.x + side.x * w * sg;
-        pos[o + 1] = p.y + side.y * w * sg;
-        pos[o + 2] = p.z + side.z * w * sg;
-        colors[o] = hot.r * k * 0.8;
-        colors[o + 1] = hot.g * k * 0.8;
-        colors[o + 2] = hot.b * k * 0.8;
+      side.crossVectors(tangent, camDir).normalize();
+      const w = i < n ? 0.055 * (1 - i / 14) : 0;
+      const k = (1 - i / 14) * 0.8;
+      for (let s2 = 0; s2 < 2; s2++) {
+        const o = (i * 2 + s2) * 3;
+        const sg = s2 === 0 ? 1 : -1;
+        this.trailPos[o] = p.x + side.x * w * sg;
+        this.trailPos[o + 1] = p.y + side.y * w * sg;
+        this.trailPos[o + 2] = p.z + side.z * w * sg;
+        this.trailCol[o] = hot.r * k;
+        this.trailCol[o + 1] = hot.g * k;
+        this.trailCol[o + 2] = hot.b * k;
       }
     }
-    const idx: number[] = [];
-    for (let i = 0; i < n - 1; i++) {
-      const a = i * 2;
-      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-    }
-    const g = this.trail.geometry;
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    g.setIndex(idx);
-    g.computeBoundingSphere();
+    this.trail.geometry.attributes.position.needsUpdate = true;
+    this.trail.geometry.attributes.color.needsUpdate = true;
   }
 
   // ---------------------------------------------------------------- camera
@@ -853,26 +950,21 @@ export class Game {
     const look = new THREE.Vector3();
     let stiffness = 4;
     switch (this.camMode) {
-      case 'menu': {
-        this.menuAngle += dt * (this.settings.reducedMotion ? 0.02 : 0.05);
-        const a = this.menuAngle;
-        pos.set(Math.sin(a) * 15, 6.5, Math.cos(a) * 15);
-        look.set(0, 1.0, 0);
-        stiffness = 2;
+      case 'map': {
+        // Club map: a slow drift over the whole resort.
+        this.mapAngle += dt * (this.settings.reducedMotion ? 0.01 : 0.03);
+        const a = Math.sin(this.mapAngle) * 0.25;
+        pos.set(Math.sin(a) * 62, portrait ? 92 : 58, 34 + Math.cos(a) * 30);
+        look.set(0, 0, -20);
+        stiffness = 1.5;
         break;
       }
       case 'intro': {
-        // Swoop on a fixed Bézier path: high over the north-west corner, across the bowl (above the stands),
-        // down behind the near baseline into the follow position.
         const t = THREE.MathUtils.clamp(this.camT / 4.0, 0, 1);
         const e = t * t * (3 - 2 * t);
-        const P = INTRO_PATH;
         const u = 1 - e;
-        pos.set(0, 0, 0)
-          .addScaledVector(P[0], u * u * u)
-          .addScaledVector(P[1], 3 * u * u * e)
-          .addScaledVector(P[2], 3 * u * e * e)
-          .addScaledVector(P[3], e * e * e);
+        const P = INTRO_PATH;
+        pos.set(0, 0, 0).addScaledVector(P[0], u * u * u).addScaledVector(P[1], 3 * u * u * e).addScaledVector(P[2], 3 * u * e * e).addScaledVector(P[3], e * e * e);
         look.set(0, 0.6, -2.6 * e);
         this.camPos.copy(pos);
         this.camLook.copy(look);
@@ -882,8 +974,8 @@ export class Game {
       case 'winner': {
         const w = sim ? sim.players[this.camFocus].pos : { x: 0, z: 0 };
         const front = w.z >= 0 ? -1 : 1;
-        pos.set(w.x + 1.1, 1.7, w.z + front * 3.4);
-        look.set(w.x, 1.15, w.z);
+        pos.set(w.x + 1.0, 1.75, w.z + front * 3.2);
+        look.set(w.x, 1.25, w.z);
         stiffness = 5;
         if (this.camT > 1.5) this.camMode = 'follow';
         break;
@@ -892,19 +984,18 @@ export class Game {
         const w = sim ? sim.players[this.winner ?? 0].pos : { x: 0, z: 0 };
         const front = w.z >= 0 ? -1 : 1;
         const a = this.camT * (this.settings.reducedMotion ? 0.05 : 0.32);
-        pos.set(w.x + Math.sin(a) * 4.2, 1.9 + Math.sin(this.camT * 0.5) * 0.3, w.z + Math.cos(a) * 4.2 * front);
-        look.set(w.x, 1.1, w.z);
+        pos.set(w.x + Math.sin(a) * 4.2, 2.0, w.z + Math.cos(a) * 4.2 * front);
+        look.set(w.x, 1.2, w.z);
         stiffness = 2.5;
         break;
       }
       default: {
-        // Follow cam: behind and above your player, leaning toward the ball (Wii-style).
         const me = sim ? sim.players[0].pos : { x: 0, z: 6.5 };
         const bx = sim ? sim.ball.p.x : 0;
-        const h = portrait ? 8.5 : 5.4;
-        const back = portrait ? 10.5 : 7.6;
+        const h = portrait ? 8.5 : 5.2;
+        const back = portrait ? 10.5 : 7.8;
         pos.set(me.x * 0.55 + bx * 0.12, h, Math.max(me.z, 3.5) + back);
-        look.set(me.x * 0.3 + bx * 0.25, 0.6, portrait ? -1.5 : -2.6);
+        look.set(me.x * 0.3 + bx * 0.25, 0.7, portrait ? -1.5 : -2.6);
         stiffness = 3.5;
       }
     }

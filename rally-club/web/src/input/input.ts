@@ -4,11 +4,18 @@
 // Keyboard: J / Space = drive · K = dink · L = lob · A/D or ←/→ = move & aim · W/S or ↑/↓ = move (precision)
 // Gamepad:  A = drive · B = dink · Y = lob · left stick = move & aim
 
-import type { ControlInput, StrokeShot } from '../../../shared/src/match.ts';
+import type { StrokeShot } from '../../../shared/src/match.ts';
+
+export type InputShot = StrokeShot | 'auto';
+export interface RawInput {
+  moveX: number;
+  moveZ: number;
+  swing: { shot: InputShot; aim: number } | null;
+}
 
 export class InputManager {
   private keys = new Set<string>();
-  private queued: StrokeShot | null = null;
+  private queued: InputShot | null = null;
   private touchAim = 0;
   private padPrev: boolean[] = [];
   onPause: (() => void) | null = null;
@@ -24,7 +31,7 @@ export class InputManager {
       }
       if (!this.enabled) return;
       this.keys.add(k);
-      if (k === 'j' || k === ' ') this.queued = 'drive';
+      if (k === 'j' || k === ' ' || k === 'enter') this.queued = 'auto';
       else if (k === 'k') this.queued = 'dink';
       else if (k === 'l') this.queued = 'lob';
       if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
@@ -38,7 +45,7 @@ export class InputManager {
     root.querySelectorAll<HTMLElement>('[data-shot]').forEach((b) => {
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        this.queued = b.dataset.shot as StrokeShot;
+        this.queued = b.dataset.shot as InputShot;
         navigator.vibrate?.(8);
       });
     });
@@ -52,12 +59,21 @@ export class InputManager {
     });
   }
 
+  /** Tap / click anywhere on the court view = swing (one-button play). */
+  bindCanvas(el: HTMLElement): void {
+    el.addEventListener('pointerdown', (e) => {
+      if (!this.enabled || e.button > 0) return;
+      this.queued = 'auto';
+      navigator.vibrate?.(6);
+    });
+  }
+
   /** Programmatic swing (used by automated tests and the on-screen buttons). */
-  press(shot: StrokeShot): void {
+  press(shot: InputShot): void {
     this.queued = shot;
   }
 
-  poll(): ControlInput {
+  poll(): RawInput {
     const k = this.keys;
     let x = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0) + this.touchAim;
     let z = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0);
@@ -68,8 +84,8 @@ export class InputManager {
       const az = -(pad.axes[1] ?? 0);
       if (Math.abs(ax) > 0.2) x += ax;
       if (Math.abs(az) > 0.2) z += az;
-      const map: [number, StrokeShot][] = [
-        [0, 'drive'],
+      const map: [number, InputShot][] = [
+        [0, 'auto'],
         [1, 'dink'],
         [3, 'lob'],
       ];

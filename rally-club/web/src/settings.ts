@@ -9,6 +9,7 @@ export type VenueId = 'lawn' | 'rooftop';
 export interface Settings {
   playerName: string;
   venue: VenueId;
+  memberId: string;
   assist: AssistLevel;
   difficulty: Difficulty;
   pointsToWin: number;
@@ -29,10 +30,11 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   playerName: 'You',
   venue: 'lawn',
-  assist: 'classic',
+  memberId: 'theo',
+  assist: 'casual',
   difficulty: 'medium',
   pointsToWin: 11,
-  graphics: 'high',
+  graphics: 'medium',
   cameraShake: true,
   master: 0.8,
   music: 0.7,
@@ -46,7 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   haptics: true,
 };
 
-const KEY = 'rally-club.settings.v1';
+const KEY = 'rally-club.settings.v2'; // v2: resort, members, Medium/Casual defaults
 
 export function loadSettings(): Settings {
   const s = { ...DEFAULT_SETTINGS };

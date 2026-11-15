@@ -32,6 +32,9 @@ export class Crowd {
   private arms: THREE.InstancedMesh;
   private hats: THREE.InstancedMesh;
   private eyes: THREE.InstancedMesh;
+  private drinks: THREE.InstancedMesh;
+  private hasDrink: boolean[] = [];
+  private acc = 1;
   private off = new THREE.Vector3();
   private people: Spectator[] = [];
   state: CrowdState = 'idle';
@@ -54,19 +57,27 @@ export class Crowd {
       if (rnd() > density) continue;
       memberFlags.push(!!seat.members);
       this.people.push({ base: seat.pos.clone(), yaw: seat.yaw + (rnd() - 0.5) * 0.3, standing: seat.standing, excitability: 0.6 + rnd() * 0.8, phase: rnd() * 10, flourish: 0, hat: rnd() < (seat.members ? hatChance * 1.6 : hatChance) });
+      this.hasDrink.push(rnd() < 0.35);
     }
     const n = this.people.length;
     const std = new THREE.MeshStandardMaterial({ roughness: 0.8 });
     // Realistic adult proportions: tapered torso, small head (scaled geometry, shared by all instances).
-    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.17, 0.38, 4, 10).scale(1.15, 1, 0.72), std, n);
+    this.bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.17, 0.38, 2, 8).scale(1.15, 1, 0.72), std, n);
     // Friendly, big-headed spectators (same family as the player characters) with simple dot eyes.
-    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.155, 16, 12), std.clone(), n);
-    this.hair = new THREE.InstancedMesh(new THREE.SphereGeometry(0.163, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5).rotateX(0.35), std.clone(), n);
-    this.eyes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.024, 8, 6).scale(0.8, 1.25, 0.5), new THREE.MeshStandardMaterial({ color: 0x2a1f1c, roughness: 0.4 }), n * 2);
-    this.arms = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.05, 0.4, 3, 6), std.clone(), n * 2);
+    this.heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.155, 12, 8), std.clone(), n);
+    this.hair = new THREE.InstancedMesh(new THREE.SphereGeometry(0.163, 10, 4, 0, Math.PI * 2, 0, Math.PI * 0.5).rotateX(0.35), std.clone(), n);
+    // Drinks in hand (spritz, lemonade, iced matcha) for about a third of the guests.
+    this.drinks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.035, 0.03, 0.12, 6), new THREE.MeshStandardMaterial({ roughness: 0.25 }), n);
+    {
+      const dc = new THREE.Color();
+      const drinkCols = [0xf6b58f, 0xf7d98a, 0xb9dcb0, 0xf2a9b8];
+      for (let i = 0; i < n; i++) this.drinks.setColorAt(i, dc.setHex(drinkCols[i % drinkCols.length]));
+    }
+    this.eyes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.024, 5, 3).scale(0.8, 1.25, 0.5), new THREE.MeshStandardMaterial({ color: 0x2a1f1c, roughness: 0.4 }), n * 2);
+    this.arms = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.05, 0.4, 1, 5), std.clone(), n * 2);
     // Straw boater: crown + brim (lathe profile).
     const hatProfile = [new THREE.Vector2(0, 0.09), new THREE.Vector2(0.15, 0.09), new THREE.Vector2(0.155, 0.0), new THREE.Vector2(0.27, 0.0), new THREE.Vector2(0.27, -0.015), new THREE.Vector2(0, -0.015)];
-    this.hats = new THREE.InstancedMesh(new THREE.LatheGeometry(hatProfile, 18).scale(0.85, 0.8, 0.85), new THREE.MeshStandardMaterial({ roughness: 0.9 }), n);
+    this.hats = new THREE.InstancedMesh(new THREE.LatheGeometry(hatProfile, 12).scale(0.85, 0.8, 0.85), new THREE.MeshStandardMaterial({ roughness: 0.9 }), n);
     const c = new THREE.Color();
     for (let i = 0; i < n; i++) {
       const pool = memberFlags[i] ? memberOutfits : outfits;
@@ -78,7 +89,7 @@ export class Crowd {
       this.arms.setColorAt(i * 2, c.setHex(outfit));
       this.arms.setColorAt(i * 2 + 1, c.setHex(outfit));
     }
-    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes]) {
+    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes, this.drinks]) {
       im.castShadow = im !== this.eyes;
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.group.add(im);
@@ -108,6 +119,11 @@ export class Crowd {
       this.stateAge = 0;
       if (this.state === 'idle') this.intensity = 0.2;
     }
+    // Re-pose at 30 Hz (crowd motion is slow; halves the CPU cost on high-refresh screens).
+    this.acc += dt;
+    if (this.acc < 1 / 30) return;
+    dt = Math.min(this.acc, 0.1);
+    this.acc = 0;
     const motion = reducedMotion ? 0.3 : 1;
     for (let i = 0; i < this.people.length; i++) {
       const p = this.people[i];
@@ -171,6 +187,11 @@ export class Crowd {
       if (p.hat) this.m.compose(this.v.set(hx, hy + 0.1, hz), this.q, this.s);
       else this.m.makeScale(0, 0, 0);
       this.hats.setMatrixAt(i, this.m);
+      if (this.hasDrink[i] && armUp < 0.6) {
+        this.off.set(0.16, -0.05, -0.2).applyQuaternion(this.q);
+        this.m.compose(this.v.set(p.base.x + this.off.x, baseY + y + this.off.y + 0.1, p.base.z + this.off.z), this.q, this.s);
+      } else this.m.makeScale(0, 0, 0);
+      this.drinks.setMatrixAt(i, this.m);
       for (const side of [-1, 1]) {
         const ax = p.base.x + Math.cos(p.yaw) * side * 0.26;
         const az = p.base.z - Math.sin(p.yaw) * side * 0.26;
@@ -181,6 +202,6 @@ export class Crowd {
         this.arms.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), this.m);
       }
     }
-    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes]) im.instanceMatrix.needsUpdate = true;
+    for (const im of [this.bodies, this.heads, this.hair, this.arms, this.hats, this.eyes, this.drinks]) im.instanceMatrix.needsUpdate = true;
   }
 }

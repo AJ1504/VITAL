@@ -137,3 +137,18 @@ scored rally; (3) pause/resume; (4) practice feeds & results; (5) AI-vs-AI game 
 4. Merge static venue geometry in the harness (≈250 → <90 draw calls).
 5. P2: `server/` WebSocket relay with room codes + `controller/` mobile web app (QR pairing, `DeviceMotionEvent.requestPermission`, calibration, swing detector → `ControlInput`).
 6. Record temporary VO for the commentary table; replace browser TTS.
+
+## Pass 5 — the resort, the members, Wii-style feel (15 Nov 2026)
+
+Response to play-test feedback ("slow, laggy, instant aces, not intuitive, boring"). This pass replaces the
+Members' Lawn as the default world. The Lawn and Rooftop venues remain in the code but are not reachable from the menu.
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| **Resort world**: four themed courts on one hillside — Garden Court (sage/sand pickleball, playable), Clay Terrace (powder-blue tennis), Glass House (lavender padel), Sunset Cliff (peach pickleball). Each has a terraced crowd, sail shades, laurel banners and its own DJ booth. Also: villa with bougainvillea, a cocktail bar with a bartender, a walking waiter, the sea and cliffs | ✅ | ✅ stills + e2e | Only the Garden Court is playable; the others are visible and labelled "soon" |
+| Pastel per-court UI themes (`body[data-court]`), new logo and the tag line "The club is yours", Courts / Members / Settings tabs, floating court labels over the club map | ✅ | ✅ e2e tab check + stills | |
+| **Members**: six original characters with expressive canvas faces (8 expressions), hairstyles, headwear and outfits. Action set: forehand, backhand, serve, ready, fist pump, celebrate, laugh, dejected, wave, clap. Includes a side-shuffle footwork cycle and pose smoothing | ✅ | ✅ visual review + e2e member selection | Still procedural primitives; no skinned meshes |
+| **One-button play**: Space, a click, a tap or gamepad A swings. Shot choice (dink, drive, lob) is automatic, and swing timing aims the shot (early = crosscourt, late = down the line). There is a timing ring under the player and a three-step first-match coach | ✅ | ✅ unit (timingAim) + e2e | K/L still force a dink or lob |
+| **Fixed-tick AI** at the sim rate, so returns don't depend on frame rate. This fixes the "instant ace" on slow devices | ✅ | ✅ unit + headless return-rate check | |
+| Performance: Medium is the default; no GTAO; capped DPR; crowd re-posed at 30 Hz; crowd geometry slimmed (~1.0M → ~0.5M triangles at Medium, ~310 draw calls) | ✅ | ✅ `renderer.info` under SwiftShader | Not yet profiled on a real phone |
+| C++ port of `timingAim` | ❌ | — | Parity tests don't exercise it yet (the field is optional) |

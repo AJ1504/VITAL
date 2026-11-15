@@ -1,14 +1,17 @@
-// "Pals" — Rally Club's original toy-like athletes, built for charm and readable animation:
-// chunky proportions, a big expressive face (blinks, looks at the ball, grins, gasps, sulks), jointed
-// arms/legs, and a keyframed action layer (anticipation → whip → follow-through) blended over
-// procedural locomotion. All geometry and faces are procedural; no third-party assets.
+// Rally Club members — original stylised athletes (see "Meet the Members"): friendly 1:5 proportions,
+// big expressive faces (blink, ball-tracking eyes, grin, laugh, gasp, pout), pastel club wear (polos with
+// striped trims, tanks, cardigans, crop sweaters, pleated skirts, shorts, trousers), striped socks and chunky
+// sneakers, and six hairstyles. Animation: keyframed actions (anticipation → whip → follow-through) layered
+// over procedural locomotion (run, side-shuffle, split-step), with a smoothing filter so nothing ever pops.
 
 import * as THREE from 'three';
 
-export type HairStyle = 'short' | 'ponytail' | 'bob' | 'spiky' | 'bun' | 'bald';
-export type Headwear = 'none' | 'visor' | 'headband' | 'panama' | 'cap';
-export type Expression = 'neutral' | 'focus' | 'happy' | 'ecstatic' | 'sad' | 'surprised' | 'determined';
-export type Action = 'none' | 'swing_fh' | 'swing_bh' | 'serve' | 'celebrate' | 'fistpump' | 'dejected' | 'wave' | 'clap';
+export type HairStyle = 'quiff' | 'ponytail' | 'wavy' | 'afro' | 'bun' | 'curly' | 'short' | 'bob' | 'spiky' | 'bald';
+export type Headwear = 'none' | 'visor' | 'headband' | 'cap' | 'panama' | 'headphones';
+export type Top = 'polo' | 'tank' | 'cardigan' | 'crop' | 'tee';
+export type Bottom = 'shorts' | 'skirt' | 'trousers';
+export type Expression = 'neutral' | 'focus' | 'happy' | 'ecstatic' | 'laugh' | 'sad' | 'surprised' | 'determined';
+export type Action = 'none' | 'swing_fh' | 'swing_bh' | 'serve' | 'celebrate' | 'fistpump' | 'dejected' | 'wave' | 'clap' | 'laugh';
 
 export interface PalLook {
   skin: number;
@@ -16,16 +19,25 @@ export interface PalLook {
   hairStyle: HairStyle;
   headwear?: Headwear;
   headwearColor?: number;
+  /** Scrunchie / ribbon colour for ponytails and buns. */
+  hairAccent?: number;
+  top?: Top;
   shirt: number;
+  /** Under-layer for cardigans (polo collar colour). */
+  shirtInner?: number;
   shorts: number;
+  bottom?: Bottom;
   shoes: number;
+  /** Stripe colour for sleeves, hems, socks and sneaker accents. */
   trim?: number;
   paddle?: number;
   trousers?: number;
   eye?: number;
-  /** 0..1 body build variation (wider torso). */
   build?: number;
-  lefty?: boolean;
+  freckles?: boolean;
+  lashes?: boolean;
+  beard?: boolean;
+  wristband?: number;
 }
 
 type V3 = [number, number, number];
@@ -79,20 +91,25 @@ const P = (o: Partial<Pose>, base: Pose): Pose => ({ ...clone(base), ...o });
 
 // Rotation conventions (character faces -z): +x on a hanging limb swings it forward; +z swings it toward +x
 // (outward for the right arm); spine/head -x leans forward; spine +y turns the chest to the left.
-const STAND: Pose = { hipsY: 0, spine: [-0.04, 0, 0], head: [0.04, 0, 0], shR: [0.1, 0, 0.12], elR: 0.3, shL: [0.1, 0, -0.12], elL: 0.3, thR: [0, 0.05], knR: -0.05, thL: [0, -0.05], knL: -0.05 };
-const READY: Pose = { hipsY: -0.07, spine: [-0.24, 0, 0], head: [0.2, 0, 0], shR: [0.75, 0, 0.35], elR: 0.95, shL: [0.65, 0, -0.32], elL: 1.05, thR: [0.38, 0.14], knR: -0.7, thL: [0.38, -0.14], knL: -0.7 };
-const BACK_FH = P({ spine: [-0.18, -1.05, -0.05], head: [0.12, 0.95, 0], shR: [0.35, 0, 1.35], elR: 0.45, shL: [1.25, 0, -0.25], elL: 0.25 }, READY);
-const HIT_FH = P({ spine: [-0.2, 0.15, 0], head: [0.12, -0.12, 0], shR: [1.35, 0, 0.55], elR: 0.12, shL: [0.45, 0, -0.65], elL: 0.8 }, READY);
-const FOLLOW_FH = P({ spine: [-0.12, 1.05, 0.05], head: [0.1, -0.9, 0], shR: [1.95, 0, -0.95], elR: 1.35, shL: [0.25, 0, -0.55], elL: 1.2 }, READY);
-const BACK_BH = P({ spine: [-0.18, 1.0, 0.05], head: [0.12, -0.95, 0], shR: [0.95, 0, -1.15], elR: 1.05, shL: [0.6, 0, -0.15], elL: 1.25 }, READY);
-const HIT_BH = P({ spine: [-0.2, -0.1, 0], head: [0.12, 0.1, 0], shR: [1.3, 0, -0.1], elR: 0.12, shL: [0.4, 0, -0.75], elL: 0.5 }, READY);
-const FOLLOW_BH = P({ spine: [-0.12, -0.95, -0.05], head: [0.1, 0.9, 0], shR: [1.85, 0, 1.25], elR: 0.25, shL: [0.3, 0, -1.0], elL: 0.35 }, READY);
-const SERVE_READY = P({ hipsY: -0.03, spine: [-0.15, -0.25, 0], head: [0.15, 0.2, 0], shR: [-0.45, 0, 0.3], elR: 0.35, shL: [0.95, 0, 0.55], elL: 0.55, thR: [0.15, 0.1], knR: -0.3, thL: [0.25, -0.1], knL: -0.35 }, READY);
-const SERVE_HIT = P({ spine: [-0.28, 0.1, 0], head: [0.15, -0.1, 0], shR: [0.95, 0, 0.18], elR: 0.18, shL: [0.5, 0, -0.45], elL: 0.7 }, SERVE_READY);
-const SERVE_FOLLOW = P({ hipsY: -0.02, spine: [-0.08, 0.45, 0], head: [0.12, -0.3, 0], shR: [2.3, 0, -0.35], elR: 0.7, shL: [0.3, 0, -0.6], elL: 0.9, thR: [0.3, 0.1], knR: -0.4, thL: [-0.1, -0.1], knL: -0.3 }, SERVE_READY);
-const DEJECTED = P({ hipsY: -0.03, spine: [-0.5, 0, 0], head: [-0.45, 0, 0], shR: [0.05, 0, 0.05], elR: 0.1, shL: [0.05, 0, -0.05], elL: 0.1, thR: [0.05, 0.05], knR: -0.15, thL: [0.05, -0.05], knL: -0.15 }, READY);
-const ARMS_UP = P({ hipsY: 0, spine: [0.15, 0, 0], head: [0.35, 0, 0], shR: [3.0, 0, 0.35], elR: 0.1, shL: [3.0, 0, -0.35], elL: 0.1, thR: [0.1, 0.1], knR: -0.1, thL: [0.1, -0.1], knL: -0.1 }, READY);
-const FIST = P({ hipsY: -0.12, spine: [-0.3, 0.3, 0], head: [0.2, -0.2, 0], shR: [1.0, 0, 0.55], elR: 2.2, shL: [0.6, 0, -0.4], elL: 1.2, thR: [0.6, 0.18], knR: -1.1, thL: [0.5, -0.18], knL: -1.0 }, READY);
+const STAND: Pose = { hipsY: 0, spine: [-0.03, 0, 0], head: [0.04, 0, 0], shR: [0.12, 0, 0.14], elR: 0.25, shL: [0.12, 0, -0.14], elL: 0.25, thR: [0, 0.06], knR: -0.04, thL: [0, -0.06], knL: -0.04 };
+// Ready (from the action studies): wide, low athletic stance, paddle held out in front with both hands.
+const READY: Pose = { hipsY: -0.13, spine: [-0.3, 0, 0], head: [0.26, 0, 0], shR: [0.85, 0, 0.18], elR: 1.05, shL: [0.8, 0, -0.08], elL: 1.25, thR: [0.45, 0.24], knR: -0.85, thL: [0.45, -0.24], knL: -0.85 };
+const BACK_FH = P({ spine: [-0.2, -1.1, -0.06], head: [0.15, 1.0, 0], shR: [0.4, 0, 1.4], elR: 0.45, shL: [1.3, 0, -0.2], elL: 0.25, thR: [0.3, 0.3], knR: -0.95, thL: [0.55, -0.2], knL: -0.6 }, READY);
+const HIT_FH = P({ spine: [-0.24, 0.2, 0], head: [0.15, -0.15, 0], shR: [1.35, 0, 0.6], elR: 0.1, shL: [0.5, 0, -0.7], elL: 0.8, thR: [0.4, 0.25], knR: -0.7, thL: [0.4, -0.25], knL: -0.8 }, READY);
+const FOLLOW_FH = P({ spine: [-0.12, 1.1, 0.06], head: [0.12, -0.95, 0], shR: [2.0, 0, -1.0], elR: 1.4, shL: [0.25, 0, -0.6], elL: 1.2 }, READY);
+const BACK_BH = P({ spine: [-0.2, 1.05, 0.06], head: [0.15, -1.0, 0], shR: [1.0, 0, -1.2], elR: 1.1, shL: [0.65, 0, -0.1], elL: 1.3, thR: [0.55, 0.2], knR: -0.6, thL: [0.3, -0.3], knL: -0.95 }, READY);
+const HIT_BH = P({ spine: [-0.24, -0.15, 0], head: [0.15, 0.12, 0], shR: [1.3, 0, -0.1], elR: 0.1, shL: [0.4, 0, -0.8], elL: 0.5 }, READY);
+const FOLLOW_BH = P({ spine: [-0.12, -1.0, -0.06], head: [0.12, 0.95, 0], shR: [1.9, 0, 1.3], elR: 0.25, shL: [0.3, 0, -1.05], elL: 0.35 }, READY);
+const SERVE_READY = P({ hipsY: -0.05, spine: [-0.18, -0.3, 0], head: [0.18, 0.25, 0], shR: [-0.5, 0, 0.3], elR: 0.35, shL: [1.0, 0, 0.55], elL: 0.55, thR: [0.15, 0.12], knR: -0.35, thL: [0.3, -0.12], knL: -0.4 }, READY);
+const SERVE_HIT = P({ spine: [-0.3, 0.12, 0], head: [0.18, -0.1, 0], shR: [1.0, 0, 0.18], elR: 0.15, shL: [0.5, 0, -0.45], elL: 0.7 }, SERVE_READY);
+const SERVE_FOLLOW = P({ hipsY: -0.03, spine: [-0.08, 0.5, 0], head: [0.14, -0.35, 0], shR: [2.35, 0, -0.35], elR: 0.7, shL: [0.3, 0, -0.6], elL: 0.9, thR: [0.35, 0.12], knR: -0.45, thL: [-0.12, -0.12], knL: -0.3 }, SERVE_READY);
+// Disappointed (action studies): bent over, hands on knees, head hanging.
+const DEJECTED = P({ hipsY: -0.12, spine: [-0.85, 0, 0], head: [-0.25, 0, 0], shR: [1.25, 0, 0.12], elR: 0.25, shL: [1.25, 0, -0.12], elL: 0.25, thR: [0.45, 0.14], knR: -0.65, thL: [0.45, -0.14], knL: -0.65 }, READY);
+const ARMS_UP = P({ hipsY: 0, spine: [0.15, 0, 0], head: [0.35, 0, 0], shR: [3.0, 0, 0.4], elR: 0.1, shL: [3.0, 0, -0.4], elL: 0.1, thR: [0.1, 0.1], knR: -0.1, thL: [0.1, -0.1], knL: -0.1 }, READY);
+// Fist pump (action studies): free arm cocked up, paddle low, knee lifted.
+const FIST = P({ hipsY: -0.05, spine: [-0.1, 0.25, 0.1], head: [0.3, -0.2, 0], shR: [0.4, 0, 0.35], elR: 0.5, shL: [2.2, 0, -0.5], elL: 2.1, thR: [0.1, 0.12], knR: -0.15, thL: [0.9, -0.12], knL: -1.3 }, READY);
+// Laughing (action studies): leaning back, hand to belly.
+const LAUGH = P({ hipsY: 0, spine: [0.3, 0.1, 0], head: [0.45, 0, 0.1], shR: [0.2, 0, 0.3], elR: 0.4, shL: [0.6, 0, 0.3], elL: 1.9, thR: [0, 0.08], knR: -0.08, thL: [0, -0.08], knL: -0.08 }, READY);
 
 interface Key {
   t: number;
@@ -107,31 +124,32 @@ function sampleKeys(keys: Key[], t: number, out: Pose): Pose {
     if (t <= keys[i].t) {
       const a = keys[i - 1];
       const b = keys[i];
-      const k = easeFn(b.ease, (t - a.t) / (b.t - a.t));
-      return mix(a.pose, b.pose, k, out);
+      return mix(a.pose, b.pose, easeFn(b.ease, (t - a.t) / (b.t - a.t)), out);
     }
   }
   return mix(keys[keys.length - 1].pose, keys[keys.length - 1].pose, 0, out);
 }
 
-// Swings start from the current anticipation pose, whip through contact fast, then follow through.
-const ACTIONS: Record<Exclude<Action, 'none' | 'celebrate' | 'wave' | 'clap'>, { keys: Key[]; dur: number }> = {
-  swing_fh: { dur: 0.75, keys: [{ t: 0, pose: BACK_FH }, { t: 0.09, pose: HIT_FH, ease: 'in' }, { t: 0.3, pose: FOLLOW_FH, ease: 'out' }, { t: 0.42, pose: FOLLOW_FH }, { t: 0.75, pose: READY, ease: 'inout' }] },
-  swing_bh: { dur: 0.75, keys: [{ t: 0, pose: BACK_BH }, { t: 0.09, pose: HIT_BH, ease: 'in' }, { t: 0.3, pose: FOLLOW_BH, ease: 'out' }, { t: 0.42, pose: FOLLOW_BH }, { t: 0.75, pose: READY, ease: 'inout' }] },
-  serve: { dur: 1.0, keys: [{ t: 0, pose: SERVE_READY }, { t: 0.07, pose: SERVE_HIT, ease: 'in' }, { t: 0.32, pose: SERVE_FOLLOW, ease: 'out' }, { t: 0.5, pose: SERVE_FOLLOW }, { t: 1.0, pose: READY, ease: 'inout' }] },
-  fistpump: { dur: 1.3, keys: [{ t: 0, pose: READY }, { t: 0.18, pose: FIST, ease: 'out' }, { t: 0.4, pose: P({ elR: 1.4, shR: [0.6, 0, 0.5] }, FIST) }, { t: 0.55, pose: FIST, ease: 'out' }, { t: 0.95, pose: FIST }, { t: 1.3, pose: STAND, ease: 'inout' }] },
-  dejected: { dur: 1.6, keys: [{ t: 0, pose: READY }, { t: 0.35, pose: DEJECTED, ease: 'out' }, { t: 1.2, pose: DEJECTED }, { t: 1.6, pose: STAND, ease: 'inout' }] },
+const ACTIONS: Record<'swing_fh' | 'swing_bh' | 'serve' | 'fistpump' | 'dejected' | 'laugh', { keys: Key[]; dur: number }> = {
+  swing_fh: { dur: 0.8, keys: [{ t: 0, pose: BACK_FH }, { t: 0.1, pose: HIT_FH, ease: 'in' }, { t: 0.32, pose: FOLLOW_FH, ease: 'out' }, { t: 0.46, pose: FOLLOW_FH }, { t: 0.8, pose: READY, ease: 'inout' }] },
+  swing_bh: { dur: 0.8, keys: [{ t: 0, pose: BACK_BH }, { t: 0.1, pose: HIT_BH, ease: 'in' }, { t: 0.32, pose: FOLLOW_BH, ease: 'out' }, { t: 0.46, pose: FOLLOW_BH }, { t: 0.8, pose: READY, ease: 'inout' }] },
+  serve: { dur: 1.0, keys: [{ t: 0, pose: SERVE_READY }, { t: 0.08, pose: SERVE_HIT, ease: 'in' }, { t: 0.34, pose: SERVE_FOLLOW, ease: 'out' }, { t: 0.52, pose: SERVE_FOLLOW }, { t: 1.0, pose: READY, ease: 'inout' }] },
+  fistpump: { dur: 1.4, keys: [{ t: 0, pose: READY }, { t: 0.2, pose: FIST, ease: 'out' }, { t: 0.42, pose: P({ elL: 1.5, shL: [1.7, 0, -0.5] }, FIST) }, { t: 0.58, pose: FIST, ease: 'out' }, { t: 1.0, pose: FIST }, { t: 1.4, pose: STAND, ease: 'inout' }] },
+  dejected: { dur: 1.7, keys: [{ t: 0, pose: READY }, { t: 0.4, pose: DEJECTED, ease: 'out' }, { t: 1.3, pose: DEJECTED }, { t: 1.7, pose: STAND, ease: 'inout' }] },
+  laugh: { dur: 1.8, keys: [{ t: 0, pose: STAND }, { t: 0.3, pose: LAUGH, ease: 'out' }, { t: 1.4, pose: LAUGH }, { t: 1.8, pose: STAND, ease: 'inout' }] },
 };
 
 // ------------------------------------------------------------------ face
+
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
 class Face {
   readonly canvas = document.createElement('canvas');
   readonly texture: THREE.CanvasTexture;
   private key = '';
-  private eyeColor: number;
-  constructor(eyeColor: number) {
-    this.eyeColor = eyeColor;
+  private look: PalLook;
+  constructor(look: PalLook) {
+    this.look = look;
     this.canvas.width = 512;
     this.canvas.height = 256;
     this.texture = new THREE.CanvasTexture(this.canvas);
@@ -140,142 +158,174 @@ class Face {
   }
 
   draw(expr: Expression, blink: boolean, gx: number, gy: number): void {
-    const key = `${expr}|${blink}|${Math.round(gx * 4)}|${Math.round(gy * 4)}`;
+    const key = `${expr}|${blink}|${Math.round(gx * 3)}|${Math.round(gy * 3)}`;
     if (key === this.key) return;
     this.key = key;
     const g = this.canvas.getContext('2d')!;
     g.clearRect(0, 0, 512, 256);
     const cx = 384;
-    const eyeY = 116;
-    const ink = '#2a1f1c';
-    const iris = `#${this.eyeColor.toString(16).padStart(6, '0')}`;
+    const eyeY = 120;
+    const ink = '#2b201c';
+    const brow = hex(this.look.hair === 0xf2d9a0 ? 0xb08a50 : this.look.hair);
     g.lineCap = 'round';
     g.lineJoin = 'round';
 
-    // Blush
+    // Cheeks
     for (const s of [-1, 1]) {
-      const grd = g.createRadialGradient(cx + s * 44, 146, 0, cx + s * 44, 146, 14);
-      grd.addColorStop(0, 'rgba(255,120,120,0.55)');
-      grd.addColorStop(1, 'rgba(255,120,120,0)');
+      const grd = g.createRadialGradient(cx + s * 40, 148, 0, cx + s * 40, 148, 14);
+      grd.addColorStop(0, expr === 'laugh' || expr === 'ecstatic' ? 'rgba(255,110,110,0.6)' : 'rgba(255,130,120,0.38)');
+      grd.addColorStop(1, 'rgba(255,130,120,0)');
       g.fillStyle = grd;
-      g.fillRect(cx + s * 44 - 16, 130, 32, 32);
+      g.fillRect(cx + s * 40 - 16, 132, 32, 32);
+    }
+    if (this.look.freckles) {
+      g.fillStyle = 'rgba(150,90,60,0.55)';
+      for (const s of [-1, 1]) for (const [dx, dy] of [[-6, 0], [2, -4], [6, 5], [-1, 7]]) {
+        g.beginPath();
+        g.arc(cx + s * 40 + dx, 142 + dy, 1.4, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    if (this.look.beard) {
+      g.fillStyle = 'rgba(30,20,15,0.32)';
+      g.beginPath();
+      g.ellipse(cx, 168, 30, 16, 0, 0, Math.PI);
+      g.fill();
     }
 
-    const closedHappy = expr === 'happy' || expr === 'ecstatic';
+    const closed = expr === 'happy' || expr === 'ecstatic' || expr === 'laugh';
     for (const s of [-1, 1]) {
-      const ex = cx + s * 27;
-      if (blink || closedHappy) {
+      const ex = cx + s * 24;
+      if (blink || closed) {
         g.strokeStyle = ink;
-        g.lineWidth = 5;
+        g.lineWidth = 4.5;
         g.beginPath();
-        if (closedHappy) g.arc(ex, eyeY + 6, 10, Math.PI * 1.1, Math.PI * 1.9);
+        if (closed) g.arc(ex, eyeY + 6, 9, Math.PI * 1.12, Math.PI * 1.88);
         else {
-          g.moveTo(ex - 10, eyeY + 2);
-          g.lineTo(ex + 10, eyeY + 2);
+          g.moveTo(ex - 9, eyeY + 2);
+          g.quadraticCurveTo(ex, eyeY + 5, ex + 9, eyeY + 2);
         }
         g.stroke();
       } else {
-        const big = expr === 'surprised' ? 1.25 : 1;
-        const lid = expr === 'sad' ? 0.35 : expr === 'focus' || expr === 'determined' ? 0.2 : 0;
+        const big = expr === 'surprised' ? 1.2 : 1;
         g.fillStyle = '#ffffff';
         g.beginPath();
-        g.ellipse(ex, eyeY, 12 * big, 16 * big, 0, 0, Math.PI * 2);
+        g.ellipse(ex, eyeY, 10 * big, 13 * big, 0, 0, Math.PI * 2);
         g.fill();
-        g.fillStyle = iris;
+        g.fillStyle = hex(this.look.eye ?? 0x4a3426);
         g.beginPath();
-        g.ellipse(ex + gx * 4, eyeY + gy * 4 + 1, 8 * big, 11 * big, 0, 0, Math.PI * 2);
+        g.ellipse(ex + gx * 3.5, eyeY + gy * 3.5 + 1, 7.5 * big, 9.5 * big, 0, 0, Math.PI * 2);
         g.fill();
         g.fillStyle = ink;
         g.beginPath();
-        g.ellipse(ex + gx * 4.5, eyeY + gy * 4.5 + 1, 4.5 * big, 6.5 * big, 0, 0, Math.PI * 2);
+        g.ellipse(ex + gx * 4, eyeY + gy * 4 + 1, 4.2 * big, 5.6 * big, 0, 0, Math.PI * 2);
         g.fill();
         g.fillStyle = '#ffffff';
         g.beginPath();
-        g.arc(ex + gx * 4 - 3, eyeY + gy * 4 - 4, 2.6, 0, Math.PI * 2);
+        g.arc(ex + gx * 3.5 - 2.8, eyeY + gy * 3.5 - 3.5, 2.4, 0, Math.PI * 2);
         g.fill();
-        if (lid > 0) {
-          // Upper eyelid in skin tone is drawn by the head behind; use a soft dark lid line instead.
-          g.fillStyle = 'rgba(0,0,0,0)';
-          g.strokeStyle = ink;
-          g.lineWidth = 3;
+        // Upper lid line (+ lashes)
+        g.strokeStyle = ink;
+        g.lineWidth = 3;
+        g.beginPath();
+        const lid = expr === 'sad' ? 3 : expr === 'focus' || expr === 'determined' ? 4 : 0;
+        g.ellipse(ex, eyeY + lid, 10.5 * big, 13.5 * big, 0, Math.PI * 1.08, Math.PI * 1.92);
+        g.stroke();
+        if (this.look.lashes) {
           g.beginPath();
-          g.moveTo(ex - 12, eyeY - 16 + lid * 22);
-          g.lineTo(ex + 12, eyeY - 16 + lid * 22 + (expr === 'sad' ? -s * 4 : s * 4));
+          g.moveTo(ex + s * 9, eyeY - 8);
+          g.lineTo(ex + s * 14, eyeY - 12);
           g.stroke();
         }
       }
-      // Brows
-      g.strokeStyle = ink;
-      g.lineWidth = 4;
+      // Brows (hair-coloured, thick)
+      g.strokeStyle = brow;
+      g.lineWidth = 5;
       g.beginPath();
-      const by = eyeY - 26;
+      const by = eyeY - 24;
       if (expr === 'focus' || expr === 'determined') {
-        g.moveTo(ex - s * 12, by - 4);
-        g.lineTo(ex + s * 10, by + 4);
+        g.moveTo(ex - s * 11, by - 4);
+        g.lineTo(ex + s * 9, by + 3);
       } else if (expr === 'sad') {
-        g.moveTo(ex - s * 12, by + 4);
-        g.lineTo(ex + s * 10, by - 5);
-      } else if (expr === 'surprised' || expr === 'ecstatic') {
-        g.arc(ex, by + 4, 11, Math.PI * 1.15, Math.PI * 1.85);
+        g.moveTo(ex - s * 11, by + 4);
+        g.lineTo(ex + s * 9, by - 4);
+      } else if (expr === 'surprised' || expr === 'ecstatic' || expr === 'laugh') {
+        g.arc(ex, by + 2, 10, Math.PI * 1.15, Math.PI * 1.85);
       } else {
-        g.moveTo(ex - 10, by);
-        g.quadraticCurveTo(ex, by - 4, ex + 10, by);
+        g.moveTo(ex - 10, by + 1);
+        g.quadraticCurveTo(ex, by - 4, ex + 10, by + 1);
       }
       g.stroke();
     }
 
     // Mouth
-    const my = 158;
+    const my = 160;
     g.strokeStyle = ink;
-    g.fillStyle = '#7a2b2b';
-    g.lineWidth = 4;
+    g.lineWidth = 3.5;
     g.beginPath();
+    const mouthFill = '#8a3a3a';
     switch (expr) {
       case 'happy':
-        g.moveTo(cx - 14, my - 3);
-        g.quadraticCurveTo(cx, my + 16, cx + 14, my - 3);
-        g.closePath();
-        g.fill();
+      case 'neutral': {
+        const w = expr === 'happy' ? 15 : 11;
+        g.moveTo(cx - w, my - 2);
+        g.quadraticCurveTo(cx, my + (expr === 'happy' ? 15 : 8), cx + w, my - 2);
+        if (expr === 'happy') {
+          g.closePath();
+          g.fillStyle = mouthFill;
+          g.fill();
+          g.fillStyle = '#ffffff';
+          g.fillRect(cx - w + 4, my - 1, (w - 4) * 2, 4); // teeth
+        }
         g.stroke();
         break;
+      }
       case 'ecstatic':
-        g.ellipse(cx, my + 2, 14, 12, 0, 0, Math.PI);
+      case 'laugh':
+        g.ellipse(cx, my + 1, 15, 13, 0, 0, Math.PI);
         g.closePath();
+        g.fillStyle = mouthFill;
         g.fill();
         g.stroke();
-        g.fillStyle = '#ff8a8a';
+        g.fillStyle = '#ffffff';
+        g.fillRect(cx - 11, my + 1, 22, 4);
+        g.fillStyle = '#f08a8a';
         g.beginPath();
-        g.ellipse(cx, my + 9, 7, 4, 0, 0, Math.PI * 2);
+        g.ellipse(cx, my + 9, 7, 3.5, 0, 0, Math.PI * 2);
         g.fill();
         break;
       case 'surprised':
-        g.ellipse(cx, my + 2, 6, 8, 0, 0, Math.PI * 2);
+        g.ellipse(cx, my + 3, 6, 8, 0, 0, Math.PI * 2);
+        g.fillStyle = mouthFill;
         g.fill();
         g.stroke();
         break;
       case 'sad':
-        g.moveTo(cx - 11, my + 6);
-        g.quadraticCurveTo(cx, my - 5, cx + 11, my + 6);
-        g.stroke();
-        break;
-      case 'focus':
-      case 'determined':
-        g.moveTo(cx - 8, my + 2);
-        g.lineTo(cx + 8, my + 1);
+        g.moveTo(cx - 10, my + 6);
+        g.quadraticCurveTo(cx, my - 4, cx + 10, my + 6);
         g.stroke();
         break;
       default:
-        g.moveTo(cx - 10, my);
-        g.quadraticCurveTo(cx, my + 8, cx + 10, my);
+        g.moveTo(cx - 8, my + 2);
+        g.quadraticCurveTo(cx + 2, my + 4, cx + 9, my);
         g.stroke();
     }
     this.texture.needsUpdate = true;
   }
 }
 
-// ------------------------------------------------------------------ the character
+// ------------------------------------------------------------------ geometry helpers
 
-const mat = (c: number, rough = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0 });
+const matCache = new Map<string, THREE.MeshStandardMaterial>();
+function mat(c: number, rough = 0.7): THREE.MeshStandardMaterial {
+  const k = `${c}|${rough}`;
+  let m = matCache.get(k);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0 });
+    matCache.set(k, m);
+  }
+  return m;
+}
 
 function capsule(r: number, len: number, m: THREE.Material, hang = true): THREE.Group {
   const g = new THREE.Group();
@@ -286,14 +336,23 @@ function capsule(r: number, len: number, m: THREE.Material, hang = true): THREE.
   return g;
 }
 
+function ring(r: number, h: number, m: THREE.Material, y: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 18, 1, true), m);
+  mesh.position.y = y;
+  return mesh;
+}
+
 export interface PalState {
   x: number;
   z: number;
-  /** World yaw the body should face (0 = facing -z). */
   yaw: number;
-  /** Horizontal speed m/s. */
   speed: number;
+  /** World-space velocity (for side-shuffle footwork). */
+  vx?: number;
+  vz?: number;
 }
+
+const tmpV = new THREE.Vector3();
 
 export class Pal {
   readonly root = new THREE.Group();
@@ -309,6 +368,7 @@ export class Pal {
   readonly thL = new THREE.Group();
   readonly knL = new THREE.Group();
   readonly hand = new THREE.Group();
+  readonly handL = new THREE.Group();
   readonly paddle = new THREE.Group();
   readonly shadow: THREE.Mesh;
   private face: Face;
@@ -325,142 +385,262 @@ export class Pal {
   private antSide: 'fh' | 'bh' = 'fh';
   private hop = 0;
   private phase = Math.random() * 10;
-  private pose: Pose = clone(STAND);
+  private shown: Pose = clone(STAND);
   private scratch: Pose = clone(STAND);
-  /** 0 = relaxed standing, 1 = athletic ready stance. */
   ready = 1;
   serving = false;
   seated = 0;
   crouch = false;
-  private readonly HIPS_H = 0.47;
+  readonly HIPS_H = 0.8;
 
   constructor(look: PalLook, shadowTex?: THREE.Texture) {
     const skin = mat(look.skin, 0.55);
-    const shirt = mat(look.shirt, 0.75);
-    const shorts = mat(look.shorts, 0.8);
-    const legM = mat(look.trousers ?? look.skin, look.trousers ? 0.8 : 0.55);
-    const shoe = mat(look.shoes, 0.5);
-    const trim = look.trim !== undefined ? mat(look.trim, 0.6) : null;
+    const top = look.top ?? 'polo';
+    const bottom = look.bottom ?? (look.trousers ? 'trousers' : 'shorts');
+    const shirt = mat(look.shirt, 0.8);
+    const lower = mat(look.trousers ?? look.shorts, 0.8);
+    const trim = mat(look.trim ?? 0xffffff, 0.7);
+    const shoe = mat(look.shoes, 0.55);
+    const sole = mat(0xfbf8f2, 0.6);
+    const sockM = mat(0xffffff, 0.9);
     const build = look.build ?? 0.5;
+    const armSleeve = top === 'cardigan' || top === 'crop';
 
     this.root.add(this.hips);
     this.hips.position.y = this.HIPS_H;
     this.hips.add(this.spine);
 
-    // Torso: soft pear shape with shorts at the bottom.
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.2, 8, 18), shirt);
-    torso.scale.set(1 + build * 0.15, 1, 0.85 + build * 0.1);
-    torso.position.y = 0.26;
+    // ---- torso (tapered: wider chest, narrower waist)
+    const torsoGeo = new THREE.CylinderGeometry(0.175 + build * 0.03, 0.15 + build * 0.02, 0.42, 20, 4);
+    const tp = torsoGeo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < tp.count; i++) {
+      const y = tp.getY(i);
+      const k = 1 + Math.max(0, y - 0.1) * 0.6; // round the shoulders
+      tp.setX(i, tp.getX(i) * (y > 0.15 ? 1 - (y - 0.15) * 1.6 : 1));
+      tp.setZ(i, tp.getZ(i) * 0.78 * (y > 0.15 ? 1 - (y - 0.15) * 1.2 : 1));
+      tp.setY(i, y * k);
+    }
+    torsoGeo.computeVertexNormals();
+    const torso = new THREE.Mesh(torsoGeo, shirt);
+    torso.position.y = 0.3;
     torso.castShadow = true;
     this.spine.add(torso);
-    const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.165 + build * 0.02, 0.17 + build * 0.02, 0.14, 20), shorts);
-    pants.scale.z = 0.88;
-    pants.position.y = 0.06;
-    pants.castShadow = true;
-    this.spine.add(pants);
-    if (trim) {
-      const collar = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.02, 8, 20), trim);
-      collar.rotation.x = Math.PI / 2;
-      collar.position.y = 0.5;
-      this.spine.add(collar);
-      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.168, 0.168, 0.025, 20, 1, true), trim);
-      stripe.scale.z = 0.86;
-      stripe.position.y = 0.14;
-      this.spine.add(stripe);
+    if (top === 'crop') {
+      const midriff = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.08, 18), skin);
+      midriff.scale.z = 0.78;
+      midriff.position.y = 0.12;
+      this.spine.add(midriff);
+      torso.position.y = 0.34;
+      torso.scale.y = 0.85;
+      this.spine.add(Object.assign(ring(0.16, 0.035, trim, 0.2), {}));
+      this.spine.add(ring(0.172, 0.03, trim, 0.4));
+    }
+    if (top === 'polo' || top === 'cardigan') {
+      // Folded collar + placket.
+      const collarM = top === 'cardigan' ? mat(look.shirtInner ?? 0xfbf8f2, 0.7) : trim;
+      for (const s of [-1, 1]) {
+        const flap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.016, 0.07), collarM);
+        flap.position.set(s * 0.045, 0.555, -0.075);
+        flap.rotation.set(-0.5, s * -0.5, s * 0.2);
+        this.spine.add(flap);
+      }
+      const neckband = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.016, 6, 16), collarM);
+      neckband.rotation.x = Math.PI / 2;
+      neckband.position.y = 0.55;
+      this.spine.add(neckband);
+      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.01), collarM);
+      placket.position.set(0, 0.48, -0.118);
+      this.spine.add(placket);
+      if (top === 'cardigan') {
+        const open = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.36, 0.01), mat(look.shirtInner ?? 0xfbf8f2, 0.7));
+        open.position.set(0, 0.32, -0.125);
+        this.spine.add(open);
+        for (let k = 0; k < 3; k++) {
+          const b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 4), mat(0xfbf8f2));
+          b.position.set(-0.04, 0.42 - k * 0.09, -0.128);
+          this.spine.add(b);
+        }
+      }
+      this.spine.add(ring(0.152, 0.03, trim, 0.12)); // hem stripe
+    }
+    if (top === 'tank') {
+      const neck = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.014, 6, 16), trim);
+      neck.rotation.x = Math.PI / 2;
+      neck.position.y = 0.54;
+      this.spine.add(neck);
+    }
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.055, 0.1, 12), skin);
+    neck.position.y = 0.6;
+    this.spine.add(neck);
+
+    // ---- lower body (shorts / skirt / trousers)
+    if (bottom === 'skirt') {
+      const sk = new THREE.CylinderGeometry(0.155, 0.27, 0.27, 16, 1, true);
+      // pleats: push alternate vertices on the hem out a touch
+      const sp = sk.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < sp.count; i++) {
+        if (sp.getY(i) < 0) {
+          const a = Math.atan2(sp.getZ(i), sp.getX(i));
+          const p = 1 + (Math.round((a / (Math.PI * 2)) * 32) % 2 ? 0.05 : -0.02);
+          sp.setX(i, sp.getX(i) * p);
+          sp.setZ(i, sp.getZ(i) * p);
+        }
+      }
+      sk.computeVertexNormals();
+      const skirt = new THREE.Mesh(sk, new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.85, side: THREE.DoubleSide }));
+      skirt.position.y = -0.04;
+      skirt.castShadow = true;
+      this.spine.add(skirt);
+      const hemStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.262, 0.272, 0.02, 16, 1, true), trim);
+      hemStripe.position.y = -0.16;
+      this.spine.add(hemStripe);
+    } else {
+      const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.158, 0.165, 0.16, 18), lower);
+      pants.scale.z = 0.82;
+      pants.position.y = 0.04;
+      pants.castShadow = true;
+      this.spine.add(pants);
+      if (look.trousers) {
+        const belt = ring(0.162, 0.03, mat(0x6b4a33, 0.6), 0.1);
+        belt.scale.z = 0.82;
+        this.spine.add(belt);
+      }
     }
 
-    // Head
-    this.head.position.y = 0.53;
+    // ---- head
+    this.head.position.y = 0.63;
     this.spine.add(this.head);
-    const R = 0.23;
+    const R = 0.165;
     const skull = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 28), skin);
-    skull.scale.set(1, 0.96, 0.98);
-    skull.position.y = 0.19;
+    skull.scale.set(1, 1.04, 0.98);
+    skull.position.y = 0.15;
     skull.castShadow = true;
     this.head.add(skull);
-    this.face = new Face(look.eye ?? 0x3b2a20);
-    const faceMesh = new THREE.Mesh(new THREE.SphereGeometry(R * 1.004, 48, 32), new THREE.MeshStandardMaterial({ map: this.face.texture, transparent: true, roughness: 0.6, depthWrite: false }));
+    const jaw = new THREE.Mesh(new THREE.SphereGeometry(R * 0.82, 24, 16), skin);
+    jaw.scale.set(1, 0.8, 0.95);
+    jaw.position.set(0, 0.09, -0.012);
+    this.head.add(jaw);
+    this.face = new Face(look);
+    const faceMesh = new THREE.Mesh(new THREE.SphereGeometry(R * 1.006, 48, 32), new THREE.MeshStandardMaterial({ map: this.face.texture, transparent: true, roughness: 0.6, depthWrite: false }));
     faceMesh.scale.copy(skull.scale);
     faceMesh.position.copy(skull.position);
     faceMesh.renderOrder = 2;
     this.head.add(faceMesh);
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), skin);
-    nose.position.set(0, 0.17, -R * 0.985);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), skin);
+    nose.scale.set(1, 0.9, 1.1);
+    nose.position.set(0, 0.135, -R * 1.0);
     this.head.add(nose);
     for (const s of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin);
-      ear.scale.set(0.6, 1, 0.8);
-      ear.position.set(s * R * 0.98, 0.17, 0.01);
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), skin);
+      ear.scale.set(0.55, 1, 0.8);
+      ear.position.set(s * R * 0.99, 0.135, 0.01);
       this.head.add(ear);
     }
     this.buildHair(look, R, skull.position.y);
 
-    // Arms
-    const armR = look.shirt;
+    // ---- arms (short sleeves with striped cuffs, or long sleeves for cardigans/crops)
+    const upperM = armSleeve ? shirt : skin;
     for (const [sh, el, s] of [
       [this.shR, this.elR, 1],
       [this.shL, this.elL, -1],
     ] as const) {
-      sh.position.set(s * 0.19, 0.43, 0);
+      sh.position.set(s * 0.2, 0.5, 0);
       this.spine.add(sh);
-      const sleeve = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), mat(armR, 0.75));
-      sleeve.castShadow = true;
-      sh.add(sleeve);
-      sh.add(capsule(0.048, 0.17, skin));
-      el.position.y = -0.16;
+      if (top !== 'tank') {
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.058, armSleeve ? 0.22 : 0.12, 14), shirt);
+        sleeve.position.y = armSleeve ? -0.1 : -0.05;
+        sleeve.castShadow = true;
+        sh.add(sleeve);
+        sh.add(ring(0.06, 0.018, trim, armSleeve ? -0.16 : -0.1));
+        if (!armSleeve) sh.add(ring(0.06, 0.012, trim, -0.075));
+      }
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.062, 14, 10), top === 'tank' ? skin : shirt);
+      sh.add(shoulder);
+      sh.add(capsule(0.045, 0.22, upperM));
+      el.position.y = -0.21;
       sh.add(el);
-      el.add(capsule(0.045, 0.16, skin));
-      const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.058, 14, 10), skin);
-      mitt.position.y = -0.17;
+      el.add(capsule(0.042, 0.2, armSleeve ? shirt : skin));
+      if (armSleeve) el.add(ring(0.045, 0.02, trim, -0.16));
+      if (look.wristband !== undefined && s === 1) el.add(ring(0.047, 0.03, mat(look.wristband), -0.17));
+      const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.052, 14, 10), skin);
+      mitt.scale.set(0.9, 1.1, 0.8);
+      mitt.position.y = -0.22;
       mitt.castShadow = true;
       el.add(mitt);
+      const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), skin);
+      thumb.position.set(-s * 0.035, -0.2, -0.03);
+      el.add(thumb);
       if (s === 1) {
-        this.hand.position.y = -0.17;
+        this.hand.position.y = -0.22;
         el.add(this.hand);
+      } else {
+        this.handL.position.y = -0.22;
+        el.add(this.handL);
       }
     }
-    // Paddle (face normal along the swing direction).
-    const face = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.022, 28), mat(look.paddle ?? 0x1c2a44, 0.35));
-    face.scale.set(1, 1, 1.22);
-    face.rotation.x = Math.PI / 2;
-    face.position.set(0, -0.2, -0.02);
-    face.castShadow = true;
-    const edge = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.012, 8, 28), mat(0xf5efe1, 0.4));
-    edge.scale.set(1, 1.22, 1);
-    edge.position.copy(face.position);
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.12, 10), mat(0x222222, 0.6));
+
+    // ---- paddle (laurel-marked face; normal along the swing direction)
+    const paddleFace = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.24, 0.016), mat(look.paddle ?? 0x8fab83, 0.45));
+    paddleFace.position.set(0, -0.23, -0.02);
+    paddleFace.castShadow = true;
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.25, 0.012), mat(0xfbf8f2, 0.5));
+    rim.position.copy(paddleFace.position);
+    rim.position.z += 0.001;
+    const mark = new THREE.Mesh(new THREE.CircleGeometry(0.035, 16), mat(0xf3e7c9, 0.6));
+    mark.position.set(0, -0.24, -0.029);
+    mark.rotation.y = Math.PI;
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.12, 10), mat(0xf5efe3, 0.7));
     grip.position.y = -0.06;
-    this.paddle.add(face, edge, grip);
+    this.paddle.add(rim, paddleFace, mark, grip);
     this.paddle.rotation.x = 0.35;
     this.hand.add(this.paddle);
 
-    // Legs
+    // ---- legs (shorts sleeves / trousers, striped socks, chunky two-tone sneakers)
+    const legM = look.trousers ? lower : skin;
     for (const [th, kn, s] of [
       [this.thR, this.knR, 1],
       [this.thL, this.knL, -1],
     ] as const) {
       th.position.set(s * 0.085, 0, 0);
       this.hips.add(th);
-      th.add(capsule(0.065, 0.21, legM));
-      kn.position.y = -0.2;
-      th.add(kn);
-      kn.add(capsule(0.058, 0.2, legM));
-      if (!look.trousers) {
-        const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.058, 0.06, 12), mat(0xffffff, 0.9));
-        sock.position.y = -0.16;
-        kn.add(sock);
+      th.add(capsule(0.068, 0.36, legM));
+      if (!look.trousers && bottom === 'shorts') {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.084, 0.18, 14), lower);
+        leg.position.y = -0.08;
+        leg.castShadow = true;
+        th.add(leg);
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.04), trim);
+        stripe.position.set(s * 0.086, -0.08, 0);
+        th.add(stripe);
+        th.add(ring(0.086, 0.014, trim, -0.165));
       }
-      const foot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), shoe);
-      foot.scale.set(0.85, 0.6, 1.45);
-      foot.position.set(0, -0.215, -0.035);
-      foot.castShadow = true;
-      kn.add(foot);
+      kn.position.y = -0.34;
+      th.add(kn);
+      kn.add(capsule(0.058, 0.34, legM));
+      if (!look.trousers) {
+        const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.058, 0.13, 14), sockM);
+        sock.position.y = -0.27;
+        kn.add(sock);
+        kn.add(ring(0.061, 0.016, trim, -0.235));
+        kn.add(ring(0.061, 0.016, trim, -0.265));
+      }
+      const shoeG = new THREE.Group();
+      shoeG.position.set(0, -0.355, -0.04);
+      const upper = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), shoe);
+      upper.scale.set(0.95, 0.7, 1.55);
+      upper.position.y = 0.01;
+      upper.castShadow = true;
+      const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.25), sole);
+      soleM.position.y = -0.035;
+      const swoosh = new THREE.Mesh(new THREE.BoxGeometry(0.152, 0.018, 0.1), trim);
+      swoosh.position.set(0, 0.0, 0.02);
+      shoeG.add(upper, soleM, swoosh);
+      kn.add(shoeG);
     }
 
-    const sh = shadowTex ?? null;
-    this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ map: sh, color: sh ? 0xffffff : 0x000000, transparent: true, opacity: sh ? 1 : 0.25, depthWrite: false }));
+    this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), new THREE.MeshBasicMaterial({ map: shadowTex ?? null, color: shadowTex ? 0xffffff : 0x000000, transparent: true, opacity: shadowTex ? 1 : 0.2, depthWrite: false }));
     this.shadow.rotation.x = -Math.PI / 2;
-    this.shadow.position.y = 0.015;
+    this.shadow.position.y = 0.02;
     this.root.add(this.shadow);
     this.applyPose(STAND);
     this.face.draw('neutral', false, 0, 0);
@@ -471,65 +651,114 @@ export class Pal {
     const add = (m: THREE.Mesh) => {
       m.castShadow = true;
       this.head.add(m);
+      return m;
     };
-    if (look.hairStyle !== 'bald') {
-      const capDepth = look.hairStyle === 'bob' ? 0.62 : 0.47;
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(R * 1.06, 32, 20, 0, Math.PI * 2, 0, Math.PI * capDepth), hm);
-      cap.position.y = cy + 0.005;
-      cap.rotation.x = 0.32; // swept back: forehead shows, more hair at the back
-      add(cap);
-      const fringe = new THREE.Mesh(new THREE.SphereGeometry(R * 0.55, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), hm);
-      fringe.scale.set(1.5, 0.45, 0.8);
-      fringe.position.set(0.04, cy + R * 0.78, -R * 0.55);
-      fringe.rotation.x = -0.6;
-      add(fringe);
-    }
-    if (look.hairStyle === 'ponytail') {
-      const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.16, 6, 10), hm);
-      tail.position.set(0, cy + 0.02, R * 1.05);
-      tail.rotation.x = 0.5;
-      add(tail);
-    } else if (look.hairStyle === 'bun') {
-      const bun = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 12), hm);
-      bun.position.set(0, cy + R * 0.95, R * 0.45);
-      add(bun);
-    } else if (look.hairStyle === 'spiky') {
-      for (let i = 0; i < 7; i++) {
-        const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.13, 8), hm);
-        const a = (i / 7) * Math.PI * 2;
-        sp.position.set(Math.cos(a) * R * 0.5, cy + R * 0.95, Math.sin(a) * R * 0.5 + 0.03);
-        sp.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
-        add(sp);
+    const style = look.hairStyle;
+    const cap = (depth: number, tilt: number, scale = 1.07) => {
+      const c = add(new THREE.Mesh(new THREE.SphereGeometry(R * scale, 32, 20, 0, Math.PI * 2, 0, Math.PI * depth), hm));
+      c.position.y = cy + 0.004;
+      c.rotation.x = tilt;
+      return c;
+    };
+    const blob = (x: number, y: number, z: number, r: number, sx = 1, sy = 1, sz = 1) => {
+      const b = add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), hm));
+      b.position.set(x, y, z);
+      b.scale.set(sx, sy, sz);
+      return b;
+    };
+    switch (style) {
+      case 'bald':
+        break;
+      case 'quiff':
+        cap(0.5, 0.35);
+        blob(0.02, cy + R * 0.9, -R * 0.55, R * 0.55, 1.5, 0.55, 0.9).rotation.x = -0.5;
+        for (let i = 0; i < 5; i++) blob(-0.07 + i * 0.035, cy + R * 1.05, -R * 0.25 + (i % 2) * 0.03, R * 0.25, 0.7, 1.1, 0.7).rotation.z = (i - 2) * 0.2;
+        break;
+      case 'ponytail': {
+        cap(0.55, 0.3);
+        const tie = add(new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.018, 8, 14), mat(look.hairAccent ?? 0xc8b8e3, 0.8)));
+        tie.position.set(0, cy + R * 0.85, R * 0.55);
+        tie.rotation.x = 0.9;
+        const tail = blob(0, cy + R * 0.25, R * 1.05, R * 0.42, 0.85, 2.2, 0.9);
+        tail.rotation.x = 0.35;
+        blob(0.02, cy - R * 0.4, R * 1.15, R * 0.32, 0.8, 1.4, 0.8);
+        blob(0.01, cy + R * 0.8, -R * 0.55, R * 0.45, 1.6, 0.5, 0.8).rotation.x = -0.4;
+        break;
       }
+      case 'wavy':
+        cap(0.58, 0.25, 1.1);
+        blob(0.03, cy + R * 0.85, -R * 0.45, R * 0.55, 1.6, 0.6, 0.9).rotation.set(-0.5, 0, 0.2);
+        for (const s of [-1, 1]) blob(s * R * 0.85, cy + R * 0.2, R * 0.1, R * 0.4, 0.8, 1.2, 1);
+        blob(0, cy + R * 0.3, R * 0.75, R * 0.6, 1.4, 1.1, 0.8);
+        break;
+      case 'afro':
+        cap(0.55, 0.15, 1.04);
+        for (let i = 0; i < 26; i++) {
+          const a = (i / 26) * Math.PI * 2 * 3.1;
+          const el = 0.15 + (i / 26) * 1.1;
+          blob(Math.cos(a) * Math.sin(el) * R * 1.05, cy + Math.cos(el) * R * 1.05, Math.sin(a) * Math.sin(el) * R * 1.05 + 0.01, R * 0.24);
+        }
+        break;
+      case 'bun':
+        cap(0.55, 0.15);
+        blob(0, cy + R * 1.15, R * 0.15, R * 0.48);
+        for (let i = 0; i < 5; i++) blob(Math.cos(i * 1.2) * R * 0.3, cy + R * 1.2 + (i % 2) * 0.02, R * 0.15 + Math.sin(i * 1.2) * R * 0.3, R * 0.2);
+        blob(0.0, cy + R * 0.75, -R * 0.62, R * 0.3, 1.8, 0.4, 0.6);
+        break;
+      case 'curly':
+        cap(0.6, 0.2, 1.08);
+        for (let i = 0; i < 34; i++) {
+          const a = (i / 34) * Math.PI * 2 * 2.3;
+          const r2 = R * (1.15 + (i % 3) * 0.12);
+          const y = cy + R * (0.9 - (i / 34) * 1.4);
+          blob(Math.cos(a) * r2, y, Math.sin(a) * r2 + R * 0.25, R * 0.3);
+        }
+        break;
+      case 'bob':
+        cap(0.66, 0.2, 1.1);
+        break;
+      case 'spiky':
+        cap(0.48, 0.3);
+        for (let i = 0; i < 7; i++) {
+          const sp = add(new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 8), hm));
+          const a = (i / 7) * Math.PI * 2;
+          sp.position.set(Math.cos(a) * R * 0.45, cy + R * 0.95, Math.sin(a) * R * 0.45 + 0.02);
+          sp.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
+        }
+        break;
+      default:
+        cap(0.5, 0.32);
+        blob(0.03, cy + R * 0.82, -R * 0.55, R * 0.45, 1.5, 0.45, 0.8).rotation.x = -0.6;
     }
     const hw = look.headwear ?? 'none';
     const hc = mat(look.headwearColor ?? 0xffffff, 0.6);
     if (hw === 'visor' || hw === 'headband') {
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.075, R * 1.075, 0.045, 32, 1, true), hc);
-      band.position.y = cy + R * 0.42;
-      band.rotation.x = 0.1;
-      add(band);
+      const band = add(new THREE.Mesh(new THREE.CylinderGeometry(R * 1.1, R * 1.1, 0.04, 32, 1, true), hc));
+      band.position.y = cy + R * 0.45;
+      band.rotation.x = 0.12;
       if (hw === 'visor') {
-        const peak = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.9, R * 0.9, 0.016, 24, 1, false, Math.PI / 2, Math.PI), hc);
-        peak.position.set(0, cy + R * 0.4, -R * 0.62);
-        peak.rotation.x = 0.12;
-        add(peak);
+        const peak = add(new THREE.Mesh(new THREE.CylinderGeometry(R * 0.95, R * 0.95, 0.014, 24, 1, false, Math.PI / 2, Math.PI), hc));
+        peak.position.set(0, cy + R * 0.42, -R * 0.65);
+        peak.rotation.x = 0.15;
       }
     } else if (hw === 'cap') {
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(R * 1.09, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), hc);
-      crown.position.y = cy + 0.01;
-      add(crown);
-      const bill = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.85, R * 0.85, 0.02, 24, 1, false, Math.PI / 2, Math.PI), hc);
-      bill.position.set(0, cy + R * 0.12, -R * 0.75);
-      add(bill);
+      const crown = add(new THREE.Mesh(new THREE.SphereGeometry(R * 1.12, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), hc));
+      crown.position.y = cy + 0.012;
+      const bill = add(new THREE.Mesh(new THREE.CylinderGeometry(R * 0.9, R * 0.9, 0.016, 24, 1, false, Math.PI / 2, Math.PI), hc));
+      bill.position.set(0, cy + R * 0.14, -R * 0.78);
+      bill.rotation.x = 0.1;
     } else if (hw === 'panama') {
-      const prof = [new THREE.Vector2(0, 0.14), new THREE.Vector2(R * 0.95, 0.13), new THREE.Vector2(R * 1.05, 0.0), new THREE.Vector2(R * 1.75, -0.02), new THREE.Vector2(R * 1.75, -0.04), new THREE.Vector2(0, -0.04)];
-      const hat = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), mat(0xeadfbf, 0.9));
-      hat.position.y = cy + R * 0.62;
-      add(hat);
-      const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.04, R * 1.06, 0.04, 28, 1, true), hc);
-      ribbon.position.y = cy + R * 0.66;
-      add(ribbon);
+      const prof = [new THREE.Vector2(0, 0.1), new THREE.Vector2(R * 0.95, 0.09), new THREE.Vector2(R * 1.06, 0.0), new THREE.Vector2(R * 1.75, -0.015), new THREE.Vector2(R * 1.75, -0.03), new THREE.Vector2(0, -0.03)];
+      const hat = add(new THREE.Mesh(new THREE.LatheGeometry(prof, 28), mat(0xeadfbf, 0.9)));
+      hat.position.y = cy + R * 0.66;
+    } else if (hw === 'headphones') {
+      const arc = add(new THREE.Mesh(new THREE.TorusGeometry(R * 1.1, 0.015, 8, 24, Math.PI), hc));
+      arc.position.y = cy;
+      for (const s of [-1, 1]) {
+        const cup = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16), hc));
+        cup.rotation.z = Math.PI / 2;
+        cup.position.set(s * R * 1.08, cy, 0);
+      }
     }
   }
 
@@ -540,7 +769,6 @@ export class Pal {
     this.exprTimer = hold;
   }
 
-  /** Eyes (and head a little) track this world point. */
   lookAt(p: THREE.Vector3 | null): void {
     if (p) {
       this.gaze.copy(p);
@@ -548,23 +776,22 @@ export class Pal {
     } else this.hasGaze = false;
   }
 
-  /** Pre-swing coil as the ball approaches (amount 0..1). */
   anticipate(side: 'fh' | 'bh', amount: number): void {
     if (this.action === 'swing_fh' || this.action === 'swing_bh' || this.action === 'serve') {
       this.anticipation = 0;
       return;
     }
     this.antSide = side;
-    this.anticipation = amount;
+    // Ease the coil in/out instead of snapping when the plan updates.
+    this.anticipation += (amount - this.anticipation) * 0.35;
   }
 
-  /** Small split-step hop (when the opponent strikes). */
   splitStep(): void {
-    if (this.hop <= 0) this.hop = 0.28;
+    if (this.hop <= 0) this.hop = 0.3;
   }
 
   play(a: Action): void {
-    this.actionFrom = clone(this.pose);
+    this.actionFrom = clone(this.shown);
     this.action = a;
     this.actionT = 0;
     this.anticipation = 0;
@@ -578,87 +805,92 @@ export class Pal {
 
   update(dt: number, st: PalState): void {
     this.root.position.set(st.x, 0, st.z);
-    // Turn smoothly toward the desired yaw.
     let dy = st.yaw - this.root.rotation.y;
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     this.root.rotation.y += dy * Math.min(1, dt * 10);
-    this.phase += dt * (5 + st.speed * 2.6);
+    this.phase += dt * (5.5 + st.speed * 2.4);
 
-    // Base layer: stand / ready / serve stance, then locomotion.
     const base = mix(STAND, this.serving ? SERVE_READY : READY, this.ready, this.scratch);
-    const run = Math.min(1, st.speed / 3.2);
+    const run = Math.min(1, st.speed / 3.0);
+    // Footwork: side-shuffle when moving mostly sideways relative to facing, else a run cycle.
+    let lateral = 0;
+    if (st.vx !== undefined && st.vz !== undefined && st.speed > 0.05) {
+      const yaw = this.root.rotation.y;
+      const right = Math.cos(yaw) * st.vx - Math.sin(yaw) * st.vz; // velocity along the body's right axis
+      lateral = Math.min(1, Math.abs(right) / Math.max(0.01, st.speed));
+    }
     if (run > 0.02) {
       const s = Math.sin(this.phase);
       const c = Math.cos(this.phase);
-      base.thR[0] += s * 0.95 * run;
-      base.thL[0] -= s * 0.95 * run;
-      base.knR += -Math.max(0, -s) * 1.3 * run - 0.1 * run;
-      base.knL += -Math.max(0, s) * 1.3 * run - 0.1 * run;
+      const fwd = run * (1 - lateral * 0.85);
+      const side = run * lateral;
+      base.thR[0] += s * 0.95 * fwd;
+      base.thL[0] -= s * 0.95 * fwd;
+      base.knR += -Math.max(0, -s) * 1.3 * fwd - 0.1 * fwd;
+      base.knL += -Math.max(0, s) * 1.3 * fwd - 0.1 * fwd;
+      // Shuffle: feet slide apart/together, knees stay bent, little hops.
+      base.thR[1] += Math.max(0, s) * 0.35 * side;
+      base.thL[1] -= Math.max(0, -s) * 0.35 * side;
       base.hipsY += (Math.abs(c) * 0.05 - 0.02) * run;
-      base.spine[0] -= 0.12 * run;
+      base.spine[0] -= 0.1 * fwd;
       base.spine[2] += c * 0.05 * run;
-      base.shL[0] += -s * 0.7 * run;
-      if (this.anticipation < 0.2 && this.action === 'none') base.shR[0] += s * 0.4 * run;
+      base.shL[0] += -s * 0.7 * fwd;
+      if (this.anticipation < 0.2 && this.action === 'none') base.shR[0] += s * 0.35 * fwd;
     } else if (this.ready > 0.5 && this.action === 'none') {
-      // Bouncy weight shift on the toes.
       const b = Math.sin(this.phase * 0.9);
       base.hipsY += b * 0.012;
-      base.spine[2] += b * 0.025;
+      base.spine[2] += b * 0.02;
     }
 
-    // Anticipation coil.
-    if (this.anticipation > 0) mix(base, this.antSide === 'fh' ? BACK_FH : BACK_BH, this.anticipation * this.anticipation * (3 - 2 * this.anticipation), base);
+    if (this.anticipation > 0.01) {
+      const a = this.anticipation;
+      mix(base, this.antSide === 'fh' ? BACK_FH : BACK_BH, a * a * (3 - 2 * a), base);
+    }
 
-    // Action layer.
     let pose = base;
     if (this.action !== 'none') {
       this.actionT += dt;
       pose = this.sampleAction(base);
     }
-
-    // Split-step hop.
     if (this.hop > 0) {
       this.hop -= dt;
-      const k = Math.max(0, this.hop) / 0.28;
-      pose.hipsY += Math.sin(k * Math.PI) * 0.09;
-      pose.knR -= Math.sin(k * Math.PI) * 0.3;
-      pose.knL -= Math.sin(k * Math.PI) * 0.3;
+      const k = Math.sin((Math.max(0, this.hop) / 0.3) * Math.PI);
+      pose.hipsY += k * 0.08;
+      pose.knR -= k * 0.25;
+      pose.knL -= k * 0.25;
     }
-
-    // Seated / crouch overrides (officials, ball kids).
     if (this.seated > 0) {
       pose.hipsY = this.seated - this.HIPS_H;
-      pose.thR = [Math.PI / 2, 0.08];
-      pose.thL = [Math.PI / 2, -0.08];
+      pose.thR = [Math.PI / 2, 0.1];
+      pose.thL = [Math.PI / 2, -0.1];
       pose.knR = pose.knL = -Math.PI / 2;
-      pose.spine[0] = -0.05;
-      pose.shR = [0.7, 0, 0.15];
-      pose.shL = [0.7, 0, -0.15];
+      pose.spine[0] = -0.04;
+      pose.shR = [0.6, 0, 0.12];
+      pose.shL = [0.6, 0, -0.12];
       pose.elR = pose.elL = 1.0;
     } else if (this.crouch) {
-      pose.hipsY = -0.2;
-      pose.thR = [1.25, 0.15];
-      pose.thL = [1.25, -0.15];
-      pose.knR = pose.knL = -1.7;
+      pose.hipsY = -0.36;
+      pose.thR = [1.3, 0.18];
+      pose.thL = [1.3, -0.18];
+      pose.knR = pose.knL = -1.8;
       pose.spine[0] = -0.55;
-      pose.shR = [1.0, 0, 0.25];
-      pose.shL = [1.0, 0, -0.25];
-      pose.elR = pose.elL = 0.3;
     }
 
-    // Head turns toward the gaze target (relative to the body).
     if (this.hasGaze) {
-      const local = this.root.worldToLocal(this.gaze.clone());
+      const local = this.root.worldToLocal(tmpV.copy(this.gaze));
       const yaw = Math.atan2(-local.x, -local.z);
-      const pitch = Math.atan2(local.y - 1.4, Math.hypot(local.x, local.z));
-      pose.head[1] += THREE.MathUtils.clamp(yaw - pose.spine[1], -1.1, 1.1) * 0.6;
-      pose.head[0] += THREE.MathUtils.clamp(pitch, -0.5, 0.5) * 0.5;
+      const pitch = Math.atan2(local.y - 1.5, Math.hypot(local.x, local.z));
+      pose.head[1] += THREE.MathUtils.clamp(yaw - pose.spine[1], -1.1, 1.1) * 0.55;
+      pose.head[0] += THREE.MathUtils.clamp(pitch, -0.5, 0.5) * 0.45;
     }
 
-    this.applyPose(pose);
-    this.pose = clone(pose);
+    // Smoothing filter: snappy during swing contact, soft otherwise — removes every pop and jitter.
+    const swinging = (this.action === 'swing_fh' || this.action === 'swing_bh' || this.action === 'serve') && this.actionT < 0.4;
+    const k = 1 - Math.exp(-dt * (swinging ? 60 : 16));
+    mix(this.shown, pose, dt <= 0.0002 ? 0 : k, this.shown);
+    this.applyPose(this.shown);
 
-    // Face.
+    // Face
     if (this.exprTimer > 0) {
       this.exprTimer -= dt;
       if (this.exprTimer <= 0) this.expression = this.anticipation > 0.3 ? 'focus' : 'neutral';
@@ -673,17 +905,14 @@ export class Pal {
     let gx = 0;
     let gy = 0;
     if (this.hasGaze) {
-      const lp = this.head.worldToLocal(this.gaze.clone());
-      // Canvas +x is the character's left, so a target on their right (+x) moves the pupils to -x.
+      const lp = this.head.worldToLocal(tmpV.copy(this.gaze));
       gx = THREE.MathUtils.clamp(-lp.x / Math.max(0.5, -lp.z), -1, 1);
-      gy = THREE.MathUtils.clamp(-(lp.y - 0.2) / 3, -1, 1);
+      gy = THREE.MathUtils.clamp(-(lp.y - 0.15) / 3, -1, 1);
     }
     this.face.draw(this.expression, this.blinking > 0, gx, gy);
 
-    // Shadow stays on the ground and shrinks while airborne.
-    const lift = Math.max(0, pose.hipsY);
-    this.shadow.position.y = 0.015;
-    this.shadow.scale.setScalar(1 - lift * 1.5);
+    const lift = Math.max(0, this.shown.hipsY);
+    this.shadow.scale.setScalar(1 - lift * 1.4);
     (this.shadow.material as THREE.MeshBasicMaterial).opacity = this.seated > 0 ? 0 : 1;
   }
 
@@ -691,7 +920,6 @@ export class Pal {
     const a = this.action;
     const t = this.actionT;
     if (a === 'celebrate') {
-      // Bouncy jumps with arms up, tucked knees in the air.
       const j = Math.abs(Math.sin(t * 6));
       const up = mix(base, ARMS_UP, Math.min(1, t * 5));
       up.hipsY += j * 0.32;
@@ -715,17 +943,19 @@ export class Pal {
       c.shR = [1.2, 0, -0.25 + k * 0.45];
       c.shL = [1.2, 0, 0.25 - k * 0.45];
       c.elR = c.elL = 1.1;
-      if (t > 2) this.action = 'none';
+      if (t > 2.2) this.action = 'none';
       return c;
     }
     const def = ACTIONS[a as keyof typeof ACTIONS];
-    if (!def) return base;
-    if (t >= def.dur) {
-      this.action = a === 'dejected' || a === 'fistpump' ? 'none' : 'none';
+    if (!def || t >= def.dur) {
+      this.action = 'none';
       return base;
     }
     const out = sampleKeys(def.keys, t, clone(base));
-    // Blend in from where we were for the first frames so actions never pop.
+    if (a === 'laugh') {
+      out.spine[0] += Math.sin(t * 18) * 0.04;
+      out.hipsY += Math.abs(Math.sin(t * 18)) * 0.01;
+    }
     const k = Math.min(1, t / 0.05);
     return mix(this.actionFrom, out, k, out);
   }
@@ -744,8 +974,7 @@ export class Pal {
     this.knL.rotation.x = p.knL;
   }
 
-  /** World position of the paddle face (for impact effects). */
   paddleWorld(out = new THREE.Vector3()): THREE.Vector3 {
-    return this.paddle.children[0].getWorldPosition(out);
+    return this.paddle.children[1].getWorldPosition(out);
   }
 }
