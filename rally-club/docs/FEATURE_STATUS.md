@@ -152,3 +152,16 @@ Members' Lawn as the default world. The Lawn and Rooftop venues remain in the co
 | **Fixed-tick AI** at the sim rate, so returns don't depend on frame rate. This fixes the "instant ace" on slow devices | ✅ | ✅ unit + headless return-rate check | |
 | Performance: Medium is the default; no GTAO; capped DPR; crowd re-posed at 30 Hz; crowd geometry slimmed (~1.0M → ~0.5M triangles at Medium, ~310 draw calls) | ✅ | ✅ `renderer.info` under SwiftShader | Not yet profiled on a real phone |
 | C++ port of `timingAim` | ❌ | — | Parity tests don't exercise it yet (the field is optional) |
+
+## Pass 6 — Vital arenas and sculpted members (15 Nov 2026)
+
+Built from the owner's Vital logo and four arena mood boards. This replaces the hillside resort from pass 5.
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| **Four playable arenas**, chosen on the Courts tab and rebuilt live behind the menu. **Coral Club**: coral court, sage surround, blush/sage chair bowl, disco-ball arch DJ, Vital sail banners, golden hour. **Mint Terrace**: glossy mint court with a yellow kitchen, stone arches, loungers and lemonade, morning light. **Lavender Amphitheatre**: lavender/powder-blue court, white steps with LED risers, shell-canopy DJ with stage beams, fire-pit lounges, dusk. **Rosé Garden**: sage court, blush surround, sail shades, striped crest cabanas | ✅ | ✅ stills of every arena (menu + gameplay); e2e on the default | Each has its own sky, light, exposure and pastel UI theme |
+| Vital branding: script logo in the menu, painted on court and surround, on banners, DJ desk, bar menu and crests (laurel + script V) | ✅ | ✅ stills | Logo extracted from the supplied image |
+| **Sculpted member bodies**: one continuous skinned mesh per member (signed-distance sculpt with smooth unions, meshed with surface nets, coloured per clothing region, skin-weighted to the rig), replacing separate primitives. Shoulders, elbows, hips and knees deform smoothly | ✅ | ✅ close-up stills (ready, forehand, backhand); unit/e2e | About 0.25 s per distinct outfit cut at load; cached per cut |
+| Broadcast hard cuts for the point-winner and celebration cameras (no sweep through the player) | ✅ | ✅ camera trace | |
+| Performance: about 150–180 draw calls and 0.23–0.43M triangles at Medium (was about 310 and 0.5M) | ✅ | ✅ `renderer.info` | Not yet profiled on a phone |
+| Free CC0 character packs evaluated (Kenney Mini Characters): rejected, because the 6-bone rig has no elbows or knees. AI 3D generation (Higgsfield/Meshy) needs paid credits | — | — | See the session notes |

@@ -1,121 +1,163 @@
-// Rally Club court themes — each court in the resort has its own clean pastel palette (like Vital's
-// per-theme colour families). The 3D court and the UI both read from the active theme.
+// Vital arenas: four pickleball venues, each with its own pastel palette, light and architecture,
+// designed from the club's mood boards. The 3D arena and the UI both read from the active theme.
 
-export type CourtId = 'garden' | 'clay' | 'glass' | 'sunset';
+export type CourtId = 'coral' | 'terrace' | 'lavender' | 'rose';
+export const ARENA_IDS: CourtId[] = ['coral', 'terrace', 'lavender', 'rose'];
+
+export type Seating = 'chairs' | 'steps' | 'benches';
+export type TimeOfDay = 'morning' | 'golden' | 'dusk';
 
 export interface CourtTheme {
   id: CourtId;
   name: string;
-  sport: 'Pickleball' | 'Tennis' | 'Padel';
+  sport: 'Pickleball';
   blurb: string;
   playable: boolean;
-  /** World placement of the court centre and its yaw (radians). The playable court sits at the origin. */
-  x: number;
-  z: number;
-  yaw: number;
   court: number;
   kitchen: number;
+  /** Optional side panels (outside the sidelines) in a second court colour. */
+  alley?: number;
   surround: number;
   line: number;
+  /** Colour of the painted Vital script on the court and surround. */
+  logo: string;
+  /** Glossy acrylic finish (reflects the sky). */
+  gloss: boolean;
+  seating: Seating;
+  seatColors: number[];
+  rows: number;
+  time: TimeOfDay;
+  /** Plaza / terrace paving around the bowl. */
+  paving: number;
+  /** Structure (stone, plaster) colour. */
+  stone: number;
+  flowers: number[];
+  trees: 'palm' | 'olive' | 'mixed';
+  glow: number;
   accent: number;
   accentDeep: number;
-  /** CSS tokens for the UI when this court is selected. */
+  /** CSS tokens for the UI when this arena is selected. */
   ui: { bg: string; card: string; ink: string; soft: string; accent: string; accentDeep: string; accent2: string };
 }
 
 export const COURTS: Record<CourtId, CourtTheme> = {
-  garden: {
-    id: 'garden',
-    name: 'The Garden Court',
+  coral: {
+    id: 'coral',
+    name: 'The Coral Club',
     sport: 'Pickleball',
-    blurb: 'Sage and sand among the olive trees, with the DJ under the stone arch.',
+    blurb: 'Coral court and blush seats at golden hour, palms throwing long shadows. The DJ plays under a disco ball.',
     playable: true,
-    x: 0,
-    z: 0,
-    yaw: 0,
-    court: 0x9db592,
-    kitchen: 0xb1c6a4,
-    surround: 0xe9d6ad,
-    line: 0xffffff,
-    accent: 0xb7a3d9,
-    accentDeep: 0x7e6aa8,
-    ui: { bg: '#f6efe3', card: '#fffaf2', ink: '#3f4a3c', soft: '#8b947f', accent: '#8fab83', accentDeep: '#5f7d55', accent2: '#b7a3d9' },
+    court: 0xe39a7f,
+    kitchen: 0xe39a7f,
+    surround: 0xa9c2a6,
+    line: 0xfffaf2,
+    logo: '#fff8ee',
+    gloss: false,
+    seating: 'chairs',
+    seatColors: [0xf1b9bd, 0x9fbf9f, 0xf6e9dc, 0xe9a4ad, 0xb7cdb1],
+    rows: 5,
+    time: 'golden',
+    paving: 0xf3e2cf,
+    stone: 0xfbf1e6,
+    flowers: [0xe0478e, 0xf06aa6, 0xd93e86],
+    trees: 'palm',
+    glow: 0xffc98a,
+    accent: 0xe39a7f,
+    accentDeep: 0xb9644b,
+    ui: { bg: '#fbefe8', card: '#fffaf6', ink: '#4a3a38', soft: '#9a8a86', accent: '#e39a7f', accentDeep: '#b9644b', accent2: '#9fbf9f' },
   },
-  clay: {
-    id: 'clay',
-    name: 'The Clay Terrace',
-    sport: 'Tennis',
-    blurb: 'Powder-blue hard court on a terracotta terrace above the valley.',
-    playable: false,
-    x: 46,
-    z: -6,
-    yaw: Math.PI / 2,
-    court: 0x9fbbd8,
-    kitchen: 0x9fbbd8,
-    surround: 0xd99c86,
-    line: 0xffffff,
-    accent: 0xe7b9a6,
-    accentDeep: 0xb4705a,
-    ui: { bg: '#f8eee8', card: '#fffaf6', ink: '#3d4552', soft: '#8a8f99', accent: '#8fb0d4', accentDeep: '#5b7fa8', accent2: '#e2a48d' },
-  },
-  glass: {
-    id: 'glass',
-    name: 'The Glass House',
-    sport: 'Padel',
-    blurb: 'A lavender padel cage wrapped in glass, wisteria and lavender beds.',
-    playable: false,
-    x: -42,
-    z: -4,
-    yaw: Math.PI / 2,
-    court: 0xbcaadd,
-    kitchen: 0xbcaadd,
-    surround: 0xe4dbef,
-    line: 0xffffff,
-    accent: 0xbcaadd,
-    accentDeep: 0x7f6aa9,
-    ui: { bg: '#f3eff8', card: '#fdfbff', ink: '#41395a', soft: '#8e88a0', accent: '#a996d2', accentDeep: '#7462a3', accent2: '#e8c6d8' },
-  },
-  sunset: {
-    id: 'sunset',
-    name: 'The Sunset Cliff',
+  terrace: {
+    id: 'terrace',
+    name: 'The Mint Terrace',
     sport: 'Pickleball',
-    blurb: 'Peach court on the cliff edge, lanterns and lounges as the sun sets over the sea.',
-    playable: false,
-    x: 4,
-    z: -50,
-    yaw: 0,
-    court: 0xeaa58f,
-    kitchen: 0xf0b8a3,
-    surround: 0xf5d2bf,
+    blurb: 'A glossy mint court with a butter-yellow kitchen on a cream stone terrace. Morning light, loungers and lemonade.',
+    playable: true,
+    court: 0x9fd8cf,
+    kitchen: 0xf2e7a0,
+    surround: 0xb9e0c4,
     line: 0xffffff,
-    accent: 0xf2b8a2,
-    accentDeep: 0xc4705a,
-    ui: { bg: '#fbefe8', card: '#fffaf6', ink: '#4a3a38', soft: '#9a8a86', accent: '#eaa58f', accentDeep: '#c4705a', accent2: '#f6d6a8' },
+    logo: '#1c3d24',
+    gloss: true,
+    seating: 'benches',
+    seatColors: [0xf8f4ea, 0xa8d8bf, 0xf8f4ea],
+    rows: 2,
+    time: 'morning',
+    paving: 0xf2e9dc,
+    stone: 0xf7f0e4,
+    flowers: [0xfbf8f1, 0xf5f2ea],
+    trees: 'olive',
+    glow: 0xfff0c8,
+    accent: 0x8fcfb3,
+    accentDeep: 0x2f6b4a,
+    ui: { bg: '#f1f6ef', card: '#fffdf8', ink: '#24392c', soft: '#7d8f82', accent: '#8fcfb3', accentDeep: '#2f6b4a', accent2: '#f2e7a0' },
+  },
+  lavender: {
+    id: 'lavender',
+    name: 'The Lavender Amphitheatre',
+    sport: 'Pickleball',
+    blurb: 'Lavender and powder-blue court in a white amphitheatre at dusk, with glowing steps and fire-pit lounges.',
+    playable: true,
+    court: 0x9fb4dc,
+    kitchen: 0x9fb4dc,
+    alley: 0xb9a3d8,
+    surround: 0x93a6cf,
+    line: 0xffffff,
+    logo: '#ffffff',
+    gloss: false,
+    seating: 'steps',
+    seatColors: [0xa8b9e0, 0xc9bce6, 0xf6f3fb],
+    rows: 5,
+    time: 'dusk',
+    paving: 0xeeeaf3,
+    stone: 0xf8f6fb,
+    flowers: [0xa279c9, 0xc8a2e0, 0x8f6cc0],
+    trees: 'olive',
+    glow: 0xffd7a8,
+    accent: 0xb9a3d8,
+    accentDeep: 0x6f5aa6,
+    ui: { bg: '#f3f0f9', card: '#fdfbff', ink: '#3b3456', soft: '#8b86a0', accent: '#b9a3d8', accentDeep: '#6f5aa6', accent2: '#9fb4dc' },
+  },
+  rose: {
+    id: 'rose',
+    name: 'The Rosé Garden',
+    sport: 'Pickleball',
+    blurb: 'Sage court on a blush surround, with sail shades, striped cabanas and bougainvillea in the evening glow.',
+    playable: true,
+    court: 0xa9c9ad,
+    kitchen: 0xa9c9ad,
+    surround: 0xdcc4d6,
+    line: 0xffffff,
+    logo: '#fffaf6',
+    gloss: false,
+    seating: 'chairs',
+    seatColors: [0xc8b8e3, 0xa9c9ad, 0xf6e9e4, 0xe8c3d3],
+    rows: 4,
+    time: 'golden',
+    paving: 0xf3e3df,
+    stone: 0xfbf2ef,
+    flowers: [0xe0478e, 0xd955a0, 0xf27bb5],
+    trees: 'palm',
+    glow: 0xffd2a0,
+    accent: 0xa9c9ad,
+    accentDeep: 0x5f8466,
+    ui: { bg: '#f8eff2', card: '#fffafb', ink: '#3f3a40', soft: '#958a92', accent: '#a9c9ad', accentDeep: '#5f8466', accent2: '#dcc4d6' },
   },
 };
 
-/** Resort-wide palette (stone, foliage, fabrics). */
+/** Shared palette (foliage, fabrics). */
 export const RESORT = {
-  stone: 0xf1e6d2,
-  stoneShade: 0xe2d3b8,
-  stoneWarm: 0xe8d8bd,
-  plaster: 0xf6eee0,
   wood: 0xc8a37a,
   woodDark: 0x9a7552,
   olive: 0x9aa877,
-  oliveDeep: 0x7f8f5e,
   trunk: 0x8a7458,
+  palmTrunk: 0xb59a78,
+  palm: 0x6f9a52,
   cypress: 0x56704a,
   lawn: 0xa7bf86,
-  lawnDeep: 0x8faa70,
   lavender: 0xa88fd0,
-  lavenderDeep: 0x8a70b8,
-  hydrangea: 0xf4f1ea,
-  fabric: 0xf5ecdb,
+  fabric: 0xfbf7f0,
   sage: 0x8fab83,
-  sea: 0x7fb3cf,
+  lemon: 0xf2d55c,
   hills: 0xb7c495,
   hillsFar: 0xc9d3b0,
-  terracotta: 0xd9a083,
-  lemon: 0xf2d55c,
 } as const;

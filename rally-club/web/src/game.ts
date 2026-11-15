@@ -20,9 +20,10 @@ import { Crowd } from './scene/crowd.ts';
 import { MEMBERS, memberById } from './scene/members.ts';
 import { Pal, type PalLook } from './scene/pal.ts';
 import { PALETTE } from './scene/palette.ts';
-import { type ResortExtras, buildResort } from './scene/resort.ts';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { type ResortExtras, buildArena, disposeArena } from './scene/arena.ts';
 import { radialTexture } from './scene/textures.ts';
-import { COURTS } from './scene/themes.ts';
+import { ARENA_IDS, COURTS, type CourtId } from './scene/themes.ts';
 import type { Venue } from './scene/venue.ts';
 import type { Settings } from './settings.ts';
 
@@ -102,6 +103,8 @@ export class Game {
   phase: Phase = 'menu';
 
   private resort: ResortExtras;
+  private court: MatchSim['court'];
+  private envMap: THREE.Texture;
   private ais: (AiController | null)[] = [null, null];
   private pals: [Pal, Pal];
   private dj: Pal;
@@ -169,9 +172,15 @@ export class Game {
     this.audio = new AudioEngine();
 
     const tmp = new MatchSim();
-    const world = buildResort(this.scene, tmp.court);
+    this.court = tmp.court;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+    const arenaId = ARENA_IDS.includes(settings.arena) ? settings.arena : 'coral';
+    const world = buildArena(this.scene, tmp.court, arenaId);
     this.venue = world;
     this.resort = world.extras;
+    this.applyArenaLook();
     this.crowd = new Crowd(this.venue.seats, 1, { outfits: PASTEL_OUTFITS, hatChance: 0.35, memberOutfits: PASTEL_OUTFITS });
     this.scene.add(this.crowd.group);
 
@@ -260,6 +269,33 @@ export class Game {
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
+  get arenaId(): CourtId {
+    return this.resort.theme.id;
+  }
+
+  /** Swap the whole stadium (only between matches). */
+  setArena(id: CourtId): void {
+    if (id === this.resort.theme.id || this.sim) return;
+    disposeArena(this.venue.root);
+    const world = buildArena(this.scene, this.court, id);
+    this.venue = world;
+    this.resort = world.extras;
+    this.applyArenaLook();
+    this.applySettings(this.settings);
+    this.dj.root.position.copy(this.venue.djAnchor);
+    this.bartender.root.position.copy(this.resort.bartender.pos);
+    this.waiterT = 0;
+  }
+
+  private applyArenaLook(): void {
+    for (const m of this.resort.reflective) {
+      m.envMap = this.envMap;
+      m.envMapIntensity = 0.9;
+      m.needsUpdate = true;
+    }
+    this.renderer.toneMappingExposure = this.resort.exposure;
+  }
+
   private opponentFor(id: string) {
     const others = MEMBERS.filter((m) => m.id !== id);
     const pick = { easy: 0, medium: 2, hard: 4 }[this.settings.difficulty] ?? 0;
@@ -305,7 +341,8 @@ export class Game {
     this.venue.sun.shadow.map?.dispose();
     (this.venue.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
     this.renderer.shadowMap.type = s.graphics === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-    const density = s.graphics === 'low' ? 0.45 : s.graphics === 'medium' ? 0.8 : 1;
+    const fill = { chairs: 0.42, steps: 0.5, benches: 0.75 }[this.resort.theme.seating];
+    const density = (s.graphics === 'low' ? 0.55 : s.graphics === 'medium' ? 0.85 : 1) * fill;
     this.scene.remove(this.crowd.group);
     this.crowd = new Crowd(this.venue.seats, density, { outfits: PASTEL_OUTFITS, hatChance: 0.35, memberOutfits: PASTEL_OUTFITS });
     this.scene.add(this.crowd.group);
@@ -364,7 +401,7 @@ export class Game {
       this.introT = 0;
       this.camMode = 'intro';
       this.camT = 0;
-      this.ui?.titleCard({ title: COURTS.garden.name, sub: cfg.mode === 'practice' ? 'Practice session' : `Singles · first to ${s.pointsToWin}`, names: this.names });
+      this.ui?.titleCard({ title: COURTS[this.resort.theme.id].name, sub: cfg.mode === 'practice' ? 'Practice session' : `Singles · first to ${s.pointsToWin}`, names: this.names });
       this.audio.jingle('intro');
       this.crowd.setState('applause', 0.8);
       this.audio.crowd('applause', 0.8);
@@ -565,7 +602,10 @@ export class Game {
         break;
       case 'serve':
         this.ui?.rally(1);
-        this.camMode = 'follow';
+        if (this.camMode !== 'follow') {
+          this.camMode = 'follow';
+          this.camT = 0;
+        }
         break;
       case 'fault': {
         const t = FAULT_TOAST[e.reason];
@@ -813,6 +853,8 @@ export class Game {
     const pulse = Math.pow(1 - beat, 3);
     this.dj.lookAt(ballWorld ?? this.camera.position);
     this.dj.update(real, { x: this.venue.djAnchor.x, z: this.venue.djAnchor.z, yaw: this.venue.djYaw ?? Math.PI, speed: 0 });
+    this.dj.root.position.y = this.venue.djAnchor.y;
+    this.resort.tick(performance.now() / 1000, beat);
     this.dj.hips.position.y += pulse * (reduced ? 0.01 : 0.05);
     this.dj.head.rotation.x += pulse * 0.25;
     this.dj.shR.rotation.set(1.3, 0, 0.3);
@@ -951,12 +993,13 @@ export class Game {
     let stiffness = 4;
     switch (this.camMode) {
       case 'map': {
-        // Club map: a slow drift over the whole resort.
-        this.mapAngle += dt * (this.settings.reducedMotion ? 0.01 : 0.03);
-        const a = Math.sin(this.mapAngle) * 0.25;
-        pos.set(Math.sin(a) * 62, portrait ? 92 : 58, 34 + Math.cos(a) * 30);
-        look.set(0, 0, -20);
-        stiffness = 1.5;
+        // Arena fly-around: a slow aerial sweep in front of the DJ booth.
+        this.mapAngle += dt * (this.settings.reducedMotion ? 0.02 : 0.07);
+        const a = Math.sin(this.mapAngle) * 0.85;
+        const R = this.resort.orbit.radius * (portrait ? 1.6 : 1);
+        pos.set(Math.sin(a) * R, this.resort.orbit.height * (portrait ? 1.5 : 1), Math.cos(a) * R);
+        look.set(0, 0, portrait ? 0 : 3.5);
+        stiffness = 1.2;
         break;
       }
       case 'intro': {
@@ -977,7 +1020,15 @@ export class Game {
         pos.set(w.x + 1.0, 1.75, w.z + front * 3.2);
         look.set(w.x, 1.25, w.z);
         stiffness = 5;
-        if (this.camT > 1.5) this.camMode = 'follow';
+        if (this.camT <= dt + 1e-6) {
+          // Broadcast-style hard cut to the close-up (never sweep through the player).
+          this.camPos.copy(pos);
+          this.camLook.copy(look);
+        }
+        if (this.camT > 1.5) {
+          this.camMode = 'follow';
+          this.camT = 0;
+        }
         break;
       }
       case 'celebrate': {
@@ -987,16 +1038,25 @@ export class Game {
         pos.set(w.x + Math.sin(a) * 4.2, 2.0, w.z + Math.cos(a) * 4.2 * front);
         look.set(w.x, 1.2, w.z);
         stiffness = 2.5;
+        if (this.camT <= dt + 1e-6) {
+          this.camPos.copy(pos);
+          this.camLook.copy(look);
+        }
         break;
       }
       default: {
         const me = sim ? sim.players[0].pos : { x: 0, z: 6.5 };
+        const cutBack = this.camMode === 'follow' && this.camT <= dt + 1e-6;
         const bx = sim ? sim.ball.p.x : 0;
         const h = portrait ? 8.5 : 5.2;
         const back = portrait ? 10.5 : 7.8;
         pos.set(me.x * 0.55 + bx * 0.12, h, Math.max(me.z, 3.5) + back);
         look.set(me.x * 0.3 + bx * 0.25, 0.7, portrait ? -1.5 : -2.6);
         stiffness = 3.5;
+        if (cutBack) {
+          this.camPos.copy(pos);
+          this.camLook.copy(look);
+        }
       }
     }
     const k = 1 - Math.exp(-stiffness * dt);

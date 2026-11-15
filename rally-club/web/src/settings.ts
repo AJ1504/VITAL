@@ -1,5 +1,6 @@
 // Player settings (brief §8). Persisted per browser as a convenience; everything works without storage.
 import type { AssistLevel } from '../../shared/src/match.ts';
+import type { CourtId } from './scene/themes.ts';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type GraphicsPreset = 'low' | 'medium' | 'high';
@@ -9,6 +10,7 @@ export type VenueId = 'lawn' | 'rooftop';
 export interface Settings {
   playerName: string;
   venue: VenueId;
+  arena: CourtId;
   memberId: string;
   assist: AssistLevel;
   difficulty: Difficulty;
@@ -30,6 +32,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   playerName: 'You',
   venue: 'lawn',
+  arena: 'coral',
   memberId: 'theo',
   assist: 'casual',
   difficulty: 'medium',
@@ -48,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
   haptics: true,
 };
 
-const KEY = 'rally-club.settings.v2'; // v2: resort, members, Medium/Casual defaults
+const KEY = 'rally-club.settings.v3'; // v3: Vital arenas
 
 export function loadSettings(): Settings {
   const s = { ...DEFAULT_SETTINGS };

@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Rally Club</title>
-    <meta name="description" content="Rally Club — a sunny resort of courts: pickleball today, tennis and padel next. The club is yours." />
+    <title>Vital Pickleball Club</title>
+    <meta name="description" content="Vital Pickleball Club: four pastel arenas, a DJ on every court, one-button play." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
-  <body data-court="garden">
+  <body data-court="coral">
     <div id="stage"></div>
 
     <!-- ===================== HUD ===================== -->
@@ -41,8 +41,8 @@
 
     <!-- ===================== PRESENTATION OVERLAYS ===================== -->
     <div id="title-card" hidden>
-      <div class="tc-kicker">Rally Club presents</div>
-      <div class="tc-title" id="tc-title">The Garden Court</div>
+      <div class="tc-kicker">Vital Pickleball Club</div>
+      <div class="tc-title" id="tc-title">The Coral Club</div>
       <div class="tc-sub" id="tc-sub">Singles · first to 11</div>
       <div class="tc-vs"><span id="tc-p0">You</span><i>vs</i><span id="tc-p1">Rafa</span></div>
       <div class="tc-skip">Press any key to skip</div>
@@ -58,17 +58,9 @@
 
     <!-- ===================== CLUB MENU ===================== -->
     <div id="menu" class="screen">
-      <header class="logo" aria-label="Rally Club">
-        <div class="logo-word">RALLY CLUB</div>
-        <svg class="laurel" viewBox="0 0 120 40" aria-hidden="true">
-          <g fill="currentColor">
-            <path d="M58 34c-12-2-22-9-27-20 6 8 15 14 27 16z" opacity=".9" />
-            <path d="M62 34c12-2 22-9 27-20-6 8-15 14-27 16z" opacity=".9" />
-            <ellipse cx="38" cy="18" rx="7" ry="2.6" transform="rotate(-40 38 18)" /><ellipse cx="45" cy="25" rx="7" ry="2.6" transform="rotate(-25 45 25)" /><ellipse cx="52" cy="30" rx="6" ry="2.4" transform="rotate(-10 52 30)" />
-            <ellipse cx="82" cy="18" rx="7" ry="2.6" transform="rotate(40 82 18)" /><ellipse cx="75" cy="25" rx="7" ry="2.6" transform="rotate(25 75 25)" /><ellipse cx="68" cy="30" rx="6" ry="2.4" transform="rotate(10 68 30)" />
-          </g>
-        </svg>
-        <div class="logo-tag">THE CLUB IS YOURS</div>
+      <header class="logo" aria-label="Vital Pickleball Club">
+        <img class="logo-mark" src="./src/brand/vital-white.png" alt="Vital" />
+        <div class="logo-tag">PICKLEBALL CLUB</div>
       </header>
 
       <nav class="tabs" role="tablist" aria-label="Club">
@@ -78,35 +70,10 @@
       </nav>
 
       <section class="panel panel-courts" data-panel="play">
-        <div class="courts">
-          <article class="court-card" data-court="garden">
-            <div class="cc-swatch"><i style="background:#9db592"></i><i style="background:#e9d6ad"></i><i style="background:#b7a3d9"></i></div>
-            <div class="cc-sport">Pickleball · Open</div>
-            <h3>The Garden Court</h3>
-            <p>Sage and sand among the olive trees, with the DJ under the stone arch.</p>
-            <div class="cc-actions">
-              <button class="cta" id="btn-quick">Play match</button>
-              <button class="cta ghost" id="btn-practice">Practice</button>
-            </div>
-          </article>
-          <article class="court-card soon" data-court="clay">
-            <div class="cc-swatch"><i style="background:#9fbbd8"></i><i style="background:#d99c86"></i><i style="background:#f6efe0"></i></div>
-            <div class="cc-sport">Tennis · Opening soon</div>
-            <h3>The Clay Terrace</h3>
-            <p>Powder-blue court on a terracotta terrace above the valley.</p>
-          </article>
-          <article class="court-card soon" data-court="glass">
-            <div class="cc-swatch"><i style="background:#bcaadd"></i><i style="background:#e4dbef"></i><i style="background:#dff0f5"></i></div>
-            <div class="cc-sport">Padel · Opening soon</div>
-            <h3>The Glass House</h3>
-            <p>A lavender padel cage wrapped in glass and wisteria.</p>
-          </article>
-          <article class="court-card soon" data-court="sunset">
-            <div class="cc-swatch"><i style="background:#eaa58f"></i><i style="background:#f5d2bf"></i><i style="background:#7fb3cf"></i></div>
-            <div class="cc-sport">Pickleball · Opening soon</div>
-            <h3>The Sunset Cliff</h3>
-            <p>Peach court on the cliff edge, lanterns and lounges over the sea.</p>
-          </article>
+        <div class="courts" id="arena-cards"></div>
+        <div class="play-row">
+          <button class="cta" id="btn-quick">Play match</button>
+          <button class="cta ghost" id="btn-practice">Practice</button>
         </div>
         <p class="fine">One button does it all: <kbd>Space</kbd>, a click or a tap swings, and your timing aims the shot. <a id="card-unreal" href="./stream.html">Play the Unreal Engine stream</a></p>
       </section>

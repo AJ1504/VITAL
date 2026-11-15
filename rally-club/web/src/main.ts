@@ -5,7 +5,7 @@ import type { MatchSim } from '../../shared/src/match.ts';
 import { Game, type GameUi, type MatchConfig, type MatchStats } from './game.ts';
 import { type Settings, loadSettings, saveSettings } from './settings.ts';
 import { MEMBERS } from './scene/members.ts';
-import { COURTS, type CourtId } from './scene/themes.ts';
+import { ARENA_IDS, COURTS, type CourtId } from './scene/themes.ts';
 import type { InputShot } from './input/input.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -17,7 +17,7 @@ if (params.get('points')) settings.pointsToWin = Number(params.get('points'));
 if (params.get('assist')) settings.assist = params.get('assist') as Settings['assist'];
 if (params.has('mute')) settings.voice = false;
 // QA / automation params: graphics preset override and simulation speed multiplier.
-if (params.get('venue')) settings.venue = params.get('venue') as Settings['venue'];
+if (params.get('arena')) settings.arena = params.get('arena') as Settings['arena'];
 if (params.get('gfx')) settings.graphics = params.get('gfx') as Settings['graphics'];
 
 const game = new Game($('#stage'), settings);
@@ -213,11 +213,46 @@ $$('.tabs button').forEach((b) =>
     $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== b.dataset.tab));
   }),
 );
-// Court cards: hovering a card re-tints the UI in that court's pastel family.
-$$('.court-card').forEach((c) => {
-  c.addEventListener('pointerenter', () => (document.body.dataset.court = c.dataset.court));
-  c.addEventListener('pointerleave', () => (document.body.dataset.court = 'garden'));
-});
+// Arena cards: picking one rebuilds the stadium behind the menu and re-tints the UI.
+function buildArenaCards(): void {
+  const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+  $('#arena-cards').replaceChildren(
+    ...ARENA_IDS.map((id) => {
+      const t = COURTS[id];
+      const card = document.createElement('button');
+      card.className = 'court-card';
+      card.dataset.court = id;
+      card.classList.toggle('active', id === game.arenaId);
+      const sw = document.createElement('div');
+      sw.className = 'cc-swatch';
+      for (const c of [t.court, t.alley ?? t.kitchen, t.surround, t.seatColors[0]]) {
+        const i = document.createElement('i');
+        i.style.background = hex(c);
+        sw.append(i);
+      }
+      const sport = document.createElement('div');
+      sport.className = 'cc-sport';
+      sport.textContent = { golden: 'Pickleball · Golden hour', dusk: 'Pickleball · Dusk', morning: 'Pickleball · Morning' }[t.time];
+      const h = document.createElement('h3');
+      h.textContent = t.name;
+      const para = document.createElement('p');
+      para.textContent = t.blurb;
+      card.append(sw, sport, h, para);
+      card.addEventListener('click', () => selectArena(id));
+      return card;
+    }),
+  );
+}
+function selectArena(id: CourtId): void {
+  game.audio.uiClick();
+  game.setArena(id);
+  game.settings.arena = id;
+  saveSettings(game.settings);
+  document.body.dataset.court = id;
+  $$('.court-card').forEach((c) => c.classList.toggle('active', c.dataset.court === id));
+}
+buildArenaCards();
+document.body.dataset.court = game.arenaId;
 $('#btn-quick').addEventListener('click', () => start({ mode: 'match' }));
 $('#btn-practice').addEventListener('click', () => start({ mode: 'practice' }));
 $('#btn-coach-reset').addEventListener('click', (e) => {

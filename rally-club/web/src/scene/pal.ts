@@ -5,6 +5,7 @@
 // over procedural locomotion (run, side-shuffle, split-step), with a smoothing filter so nothing ever pops.
 
 import * as THREE from 'three';
+import { createBody } from './body.ts';
 
 export type HairStyle = 'quiff' | 'ponytail' | 'wavy' | 'afro' | 'bun' | 'curly' | 'short' | 'bob' | 'spiky' | 'bald';
 export type Headwear = 'none' | 'visor' | 'headband' | 'cap' | 'panama' | 'headphones';
@@ -371,6 +372,7 @@ export class Pal {
   readonly handL = new THREE.Group();
   readonly paddle = new THREE.Group();
   readonly shadow: THREE.Mesh;
+  readonly body: THREE.SkinnedMesh;
   private face: Face;
   private expression: Expression = 'neutral';
   private exprTimer = 0;
@@ -397,114 +399,58 @@ export class Pal {
     const skin = mat(look.skin, 0.55);
     const top = look.top ?? 'polo';
     const bottom = look.bottom ?? (look.trousers ? 'trousers' : 'shorts');
-    const shirt = mat(look.shirt, 0.8);
-    const lower = mat(look.trousers ?? look.shorts, 0.8);
     const trim = mat(look.trim ?? 0xffffff, 0.7);
-    const shoe = mat(look.shoes, 0.55);
-    const sole = mat(0xfbf8f2, 0.6);
-    const sockM = mat(0xffffff, 0.9);
     const build = look.build ?? 0.5;
-    const armSleeve = top === 'cardigan' || top === 'crop';
 
     this.root.add(this.hips);
     this.hips.position.y = this.HIPS_H;
     this.hips.add(this.spine);
 
-    // ---- torso (tapered: wider chest, narrower waist)
-    const torsoGeo = new THREE.CylinderGeometry(0.175 + build * 0.03, 0.15 + build * 0.02, 0.42, 20, 4);
-    const tp = torsoGeo.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < tp.count; i++) {
-      const y = tp.getY(i);
-      const k = 1 + Math.max(0, y - 0.1) * 0.6; // round the shoulders
-      tp.setX(i, tp.getX(i) * (y > 0.15 ? 1 - (y - 0.15) * 1.6 : 1));
-      tp.setZ(i, tp.getZ(i) * 0.78 * (y > 0.15 ? 1 - (y - 0.15) * 1.2 : 1));
-      tp.setY(i, y * k);
-    }
-    torsoGeo.computeVertexNormals();
-    const torso = new THREE.Mesh(torsoGeo, shirt);
-    torso.position.y = 0.3;
-    torso.castShadow = true;
-    this.spine.add(torso);
-    if (top === 'crop') {
-      const midriff = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.08, 18), skin);
-      midriff.scale.z = 0.78;
-      midriff.position.y = 0.12;
-      this.spine.add(midriff);
-      torso.position.y = 0.34;
-      torso.scale.y = 0.85;
-      this.spine.add(Object.assign(ring(0.16, 0.035, trim, 0.2), {}));
-      this.spine.add(ring(0.172, 0.03, trim, 0.4));
-    }
+    // ---- collar details on the shirt (the body itself is one smooth skinned mesh, built below)
     if (top === 'polo' || top === 'cardigan') {
-      // Folded collar + placket.
       const collarM = top === 'cardigan' ? mat(look.shirtInner ?? 0xfbf8f2, 0.7) : trim;
       for (const s of [-1, 1]) {
-        const flap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.016, 0.07), collarM);
-        flap.position.set(s * 0.045, 0.555, -0.075);
-        flap.rotation.set(-0.5, s * -0.5, s * 0.2);
+        const flap = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.014, 0.06), collarM);
+        flap.position.set(s * 0.04, 0.515, -0.07);
+        flap.rotation.set(-0.55, s * -0.5, s * 0.25);
         this.spine.add(flap);
       }
-      const neckband = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.016, 6, 16), collarM);
-      neckband.rotation.x = Math.PI / 2;
-      neckband.position.y = 0.55;
-      this.spine.add(neckband);
-      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.01), collarM);
-      placket.position.set(0, 0.48, -0.118);
+      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.1, 0.01), collarM);
+      placket.position.set(0, 0.46, -0.118);
+      placket.rotation.x = 0.12;
       this.spine.add(placket);
       if (top === 'cardigan') {
-        const open = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.36, 0.01), mat(look.shirtInner ?? 0xfbf8f2, 0.7));
-        open.position.set(0, 0.32, -0.125);
+        const open = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.3, 0.01), mat(look.shirtInner ?? 0xfbf8f2, 0.7));
+        open.position.set(0, 0.32, -0.124);
         this.spine.add(open);
         for (let k = 0; k < 3; k++) {
-          const b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 4), mat(0xfbf8f2));
-          b.position.set(-0.04, 0.42 - k * 0.09, -0.128);
-          this.spine.add(b);
+          const bt = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 4), mat(0xfbf8f2));
+          bt.position.set(-0.042, 0.4 - k * 0.08, -0.13);
+          this.spine.add(bt);
         }
       }
-      this.spine.add(ring(0.152, 0.03, trim, 0.12)); // hem stripe
     }
-    if (top === 'tank') {
-      const neck = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.014, 6, 16), trim);
-      neck.rotation.x = Math.PI / 2;
-      neck.position.y = 0.54;
-      this.spine.add(neck);
-    }
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.055, 0.1, 12), skin);
-    neck.position.y = 0.6;
-    this.spine.add(neck);
-
-    // ---- lower body (shorts / skirt / trousers)
     if (bottom === 'skirt') {
-      const sk = new THREE.CylinderGeometry(0.155, 0.27, 0.27, 16, 1, true);
-      // pleats: push alternate vertices on the hem out a touch
+      const sk = new THREE.CylinderGeometry(0.16, 0.27, 0.25, 20, 1, true);
       const sp = sk.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < sp.count; i++) {
         if (sp.getY(i) < 0) {
-          const a = Math.atan2(sp.getZ(i), sp.getX(i));
-          const p = 1 + (Math.round((a / (Math.PI * 2)) * 32) % 2 ? 0.05 : -0.02);
-          sp.setX(i, sp.getX(i) * p);
-          sp.setZ(i, sp.getZ(i) * p);
+          const ang = Math.atan2(sp.getZ(i), sp.getX(i));
+          const k = 1 + (Math.round((ang / (Math.PI * 2)) * 40) % 2 ? 0.05 : -0.02);
+          sp.setX(i, sp.getX(i) * k);
+          sp.setZ(i, sp.getZ(i) * k);
         }
       }
       sk.computeVertexNormals();
-      const skirt = new THREE.Mesh(sk, new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.85, side: THREE.DoubleSide }));
-      skirt.position.y = -0.04;
+      const skirt = new THREE.Mesh(sk, new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.8, side: THREE.DoubleSide }));
+      skirt.scale.z = 0.85;
+      skirt.position.y = -0.02;
       skirt.castShadow = true;
-      this.spine.add(skirt);
-      const hemStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.262, 0.272, 0.02, 16, 1, true), trim);
-      hemStripe.position.y = -0.16;
-      this.spine.add(hemStripe);
-    } else {
-      const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.158, 0.165, 0.16, 18), lower);
-      pants.scale.z = 0.82;
-      pants.position.y = 0.04;
-      pants.castShadow = true;
-      this.spine.add(pants);
-      if (look.trousers) {
-        const belt = ring(0.162, 0.03, mat(0x6b4a33, 0.6), 0.1);
-        belt.scale.z = 0.82;
-        this.spine.add(belt);
-      }
+      this.hips.add(skirt);
+      const hemStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.262, 0.272, 0.02, 20, 1, true), trim);
+      hemStripe.scale.z = 0.85;
+      hemStripe.position.y = -0.13;
+      this.hips.add(hemStripe);
     }
 
     // ---- head
@@ -538,48 +484,29 @@ export class Pal {
     }
     this.buildHair(look, R, skull.position.y);
 
-    // ---- arms (short sleeves with striped cuffs, or long sleeves for cardigans/crops)
-    const upperM = armSleeve ? shirt : skin;
-    for (const [sh, el, s] of [
-      [this.shR, this.elR, 1],
-      [this.shL, this.elL, -1],
+    // ---- joints: shoulders, elbows, hands, hips, knees
+    for (const [sh, el, hd, s] of [
+      [this.shR, this.elR, this.hand, 1],
+      [this.shL, this.elL, this.handL, -1],
     ] as const) {
       sh.position.set(s * 0.2, 0.5, 0);
       this.spine.add(sh);
-      if (top !== 'tank') {
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.058, armSleeve ? 0.22 : 0.12, 14), shirt);
-        sleeve.position.y = armSleeve ? -0.1 : -0.05;
-        sleeve.castShadow = true;
-        sh.add(sleeve);
-        sh.add(ring(0.06, 0.018, trim, armSleeve ? -0.16 : -0.1));
-        if (!armSleeve) sh.add(ring(0.06, 0.012, trim, -0.075));
-      }
-      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.062, 14, 10), top === 'tank' ? skin : shirt);
-      sh.add(shoulder);
-      sh.add(capsule(0.045, 0.22, upperM));
       el.position.y = -0.21;
       sh.add(el);
-      el.add(capsule(0.042, 0.2, armSleeve ? shirt : skin));
-      if (armSleeve) el.add(ring(0.045, 0.02, trim, -0.16));
-      if (look.wristband !== undefined && s === 1) el.add(ring(0.047, 0.03, mat(look.wristband), -0.17));
-      const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.052, 14, 10), skin);
-      mitt.scale.set(0.9, 1.1, 0.8);
-      mitt.position.y = -0.22;
-      mitt.castShadow = true;
-      el.add(mitt);
-      const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), skin);
-      thumb.position.set(-s * 0.035, -0.2, -0.03);
-      el.add(thumb);
-      if (s === 1) {
-        this.hand.position.y = -0.22;
-        el.add(this.hand);
-      } else {
-        this.handL.position.y = -0.22;
-        el.add(this.handL);
-      }
+      hd.position.y = -0.22;
+      el.add(hd);
+    }
+    for (const [th, kn, s] of [
+      [this.thR, this.knR, 1],
+      [this.thL, this.knL, -1],
+    ] as const) {
+      th.position.set(s * 0.085, 0, 0);
+      this.hips.add(th);
+      kn.position.y = -0.34;
+      th.add(kn);
     }
 
-    // ---- paddle (laurel-marked face; normal along the swing direction)
+    // ---- paddle (crest-marked face; normal along the swing direction)
     const paddleFace = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.24, 0.016), mat(look.paddle ?? 0x8fab83, 0.45));
     paddleFace.position.set(0, -0.23, -0.02);
     paddleFace.castShadow = true;
@@ -595,48 +522,12 @@ export class Pal {
     this.paddle.rotation.x = 0.35;
     this.hand.add(this.paddle);
 
-    // ---- legs (shorts sleeves / trousers, striped socks, chunky two-tone sneakers)
-    const legM = look.trousers ? lower : skin;
-    for (const [th, kn, s] of [
-      [this.thR, this.knR, 1],
-      [this.thL, this.knL, -1],
-    ] as const) {
-      th.position.set(s * 0.085, 0, 0);
-      this.hips.add(th);
-      th.add(capsule(0.068, 0.36, legM));
-      if (!look.trousers && bottom === 'shorts') {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.084, 0.18, 14), lower);
-        leg.position.y = -0.08;
-        leg.castShadow = true;
-        th.add(leg);
-        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.04), trim);
-        stripe.position.set(s * 0.086, -0.08, 0);
-        th.add(stripe);
-        th.add(ring(0.086, 0.014, trim, -0.165));
-      }
-      kn.position.y = -0.34;
-      th.add(kn);
-      kn.add(capsule(0.058, 0.34, legM));
-      if (!look.trousers) {
-        const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.058, 0.13, 14), sockM);
-        sock.position.y = -0.27;
-        kn.add(sock);
-        kn.add(ring(0.061, 0.016, trim, -0.235));
-        kn.add(ring(0.061, 0.016, trim, -0.265));
-      }
-      const shoeG = new THREE.Group();
-      shoeG.position.set(0, -0.355, -0.04);
-      const upper = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), shoe);
-      upper.scale.set(0.95, 0.7, 1.55);
-      upper.position.y = 0.01;
-      upper.castShadow = true;
-      const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.25), sole);
-      soleM.position.y = -0.035;
-      const swoosh = new THREE.Mesh(new THREE.BoxGeometry(0.152, 0.018, 0.1), trim);
-      swoosh.position.set(0, 0.0, 0.02);
-      shoeG.add(upper, soleM, swoosh);
-      kn.add(shoeG);
-    }
+    // ---- the body: one smooth skinned mesh over the joints
+    this.body = createBody(
+      { skin: look.skin, shirt: look.shirt, lower: look.trousers ?? look.shorts, trim: look.trim ?? 0xffffff, shoes: look.shoes, wristband: look.wristband, top, bottom, build },
+      this.root,
+      { hips: this.hips, spine: this.spine, head: this.head, shR: this.shR, elR: this.elR, hand: this.hand, shL: this.shL, elL: this.elL, handL: this.handL, thR: this.thR, knR: this.knR, thL: this.thL, knL: this.knL },
+    );
 
     this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), new THREE.MeshBasicMaterial({ map: shadowTex ?? null, color: shadowTex ? 0xffffff : 0x000000, transparent: true, opacity: shadowTex ? 1 : 0.2, depthWrite: false }));
     this.shadow.rotation.x = -Math.PI / 2;
