@@ -16,6 +16,7 @@ const { createNotifier, ownerSummaryText, callerConfirmation } = require('./noti
 const views = require('./views');
 const tts = require('./tts');
 const { createOutreach } = require('./outreach/engine');
+const { createCampaign } = require('./outreach/campaign');
 const outreachOffer = require('./outreach/offer');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -29,6 +30,7 @@ function createApp(opts = {}) {
   const baseUrl = () => (process.env.PUBLIC_URL || lastBase).replace(/\/$/, '');
   const notify = opts.notify || createNotifier({ store, baseUrl });
   const outreach = createOutreach({ store, baseUrl, alert: (t) => alertAdmin(t) });
+  const campaign = createCampaign({ store, outreach });
   const summarize = opts.summarize || ai.summarize;
   const demoSessions = new Map();
   const hits = new Map();
@@ -73,6 +75,8 @@ function createApp(opts = {}) {
     for (const [k, v] of demoSessions) if (Date.now() - v.touched > 30 * 60000) demoSessions.delete(k);
     // Outreach: at most one email a minute, so sends are naturally spread out.
     if (process.env.OUTREACH_AUTO === '1') outreach.send({ limit: 1 }).catch((e) => console.error('[outreach]', e.message));
+    // Nationwide lead finding: a few new searches every morning.
+    if (process.env.CAMPAIGN_AUTO === '1') campaign.daily().catch((e) => console.error('[campaign]', e.message));
     // End of the free week: one text with their own numbers, then they decide.
     for (const biz of Object.values(store.data.businesses)) {
       const pi = pilotInfo(biz);
@@ -352,13 +356,14 @@ function createApp(opts = {}) {
       if (m === 'POST') {
         const body = await readBody(req);
         if (body.do === 'send') { const r = await outreach.send({ limit: +body.count || 5, ignoreWindow: true }); flash = r.blocked || `Sent ${r.sent}.`; }
+        else if (body.do === 'campaign') { const r = await campaign.run({ searches: Math.min(+body.count || 5, 20) }); flash = `Ran ${r.results.length} searches: ${r.results.reduce((n, x) => n + (x.added || 0), 0)} new shops, ${r.enriched.found} emails found.` + (r.results.find((x) => x.error) ? ` Problem: ${r.results.find((x) => x.error).error}` : ''); }
         else if (body.do === 'enrich') { const r = await outreach.enrich({ limit: 30 }); flash = `Found ${r.found} emails, ${r.missing} without.`; }
         else if (body.do === 'find') {
           try { const r = await outreach.find({ query: clean(body.query, 60), location: clean(body.location, 60), max: 40 }); flash = `Found ${r.found} shops, ${r.added} new, ${r.withQuote} with a missed-call review.`; } catch (e) { flash = e.message; }
         } else if (body.do === 'mark') { outreach.mark(body.id, body.status); flash = 'Updated.'; }
       }
       const list = Object.values(store.data.leads).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      return html(res, views.adminLeads({ list, key, summary: outreach.summary(), flash, auto: process.env.OUTREACH_AUTO === '1' }));
+      return html(res, views.adminLeads({ list, key, summary: outreach.summary(), flash, auto: process.env.OUTREACH_AUTO === '1', campaign: { ...campaign.progress(), next: campaign.next(3).map((c) => `${c.query} in ${c.market}`), auto: process.env.CAMPAIGN_AUTO === '1' } }));
     }
 
     // --- operator view for Aakarsh ---

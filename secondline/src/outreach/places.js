@@ -17,7 +17,17 @@ const FIELDS = [
 const MISSED = /\b(never|didn'?t|did not|don'?t|do not|no one|nobody|couldn'?t|could not|wouldn'?t|won'?t|hard to|impossible to|tried to|kept|unable to)\b[^.!?]{0,40}?\b(call(ed|ing|s)? (me |us )?back|answer(ed|ing|s)?|pick(ed|s)? up|reach(ed)?|get (a ?hold|through)|return(ed)? (my |our |the )?(call|message|voicemail)s?|respond(ed)?)\b|\b(straight to voicemail|no answer|unanswered|never heard back|full voicemail|voicemail (was |is )?full)\b/i;
 
 const TRADE_WORDS = [
-  [/plumb|drain|sewer|septic|water heater/i, 'plumbing'],
+  // Niche trades first, so "septic" or "water damage" don't land in plumbing.
+  [/septic|grease trap|portable toilet/i, 'septic'],
+  [/water damage|restoration|mold remediation|fire damage|flood clean/i, 'restoration'],
+  [/well pump|well drilling|water well|\bwells?\b/i, 'well'],
+  [/garage door/i, 'garage'],
+  [/appliance/i, 'appliance'],
+  [/tree|arborist|stump/i, 'tree'],
+  [/pest|exterminat|termite|wildlife removal/i, 'pest'],
+  [/chimney/i, 'chimney'],
+  [/mobile mechanic|auto repair|mechanic|diesel repair/i, 'mechanic'],
+  [/plumb|drain|sewer|water heater/i, 'plumbing'],
   [/hvac|heating|cooling|air condition|furnace|\bac\b/i, 'hvac'],
   [/electric/i, 'electrical'],
   [/roof|gutter/i, 'roofing'],
@@ -25,8 +35,8 @@ const TRADE_WORDS = [
   [/locksmith|lock/i, 'locksmith'],
 ];
 function guessTrade(...texts) {
-  const t = texts.filter(Boolean).join(' ');
-  for (const [re, trade] of TRADE_WORDS) if (re.test(t)) return trade;
+  // The search term decides first; the shop's name and Google types only break ties.
+  for (const t of texts.filter(Boolean)) for (const [re, trade] of TRADE_WORDS) if (re.test(t)) return trade;
   return 'other';
 }
 

@@ -49,7 +49,9 @@ function senderProblems(s = sender()) {
   return p;
 }
 
-const JOB = { plumbing: 'a $1,200 water heater', hvac: 'a $6,000 furnace', electrical: 'a $2,500 panel upgrade', roofing: 'a $10,000 roof', towing: 'a $300 tow', locksmith: 'a $250 lockout', other: 'a $500 job' };
+const JOB = { septic: 'a $500 pump-out', well: 'a $1,500 well pump', garage: 'a $400 spring job', appliance: 'a $300 fridge repair', tree: 'a $2,000 tree removal', pest: 'a $1,200 termite job', restoration: 'a $5,000 water-damage claim', chimney: 'a $600 chimney repair', mechanic: 'a $400 repair', plumbing: 'a $1,200 water heater', hvac: 'a $6,000 furnace', electrical: 'a $2,500 panel upgrade', roofing: 'a $10,000 roof', towing: 'a $300 tow', locksmith: 'a $250 lockout', other: 'a $500 job' };
+
+const PROBLEM = { towing: 'a dead battery', septic: 'a backed-up septic', well: 'no water', garage: 'a garage door that won\'t close', appliance: 'a fridge that quit', tree: 'a tree down in the yard', pest: 'a wasp nest by the door', restoration: 'a flooded basement', chimney: 'a smoky fireplace', mechanic: 'a car that won\'t start', plumbing: 'a leaking water heater', hvac: 'no heat', electrical: 'a dead outlet', roofing: 'a leaking roof', locksmith: 'a lockout' };
 
 function offerLines(o) {
   const lines = [
@@ -112,7 +114,7 @@ function draft(lead, step, { baseUrl, now = new Date() } = {}) {
       `Quick follow-up — your receptionist for ${biz} is still set up and waiting:`,
       link,
       '',
-      `Pretend you're a customer with ${lead.trade === 'towing' ? 'a dead battery' : 'a problem'}. It'll book you in and show you the text you'd get.`,
+      `Pretend you're a customer with ${PROBLEM[lead.trade] || 'a problem'}. It'll book you in and show you the text you'd get.`,
       '',
       `A part-time receptionist runs $2,000+ a month and goes home at five. This is $${o.monthly}, picks up at 3am${o.setupWaived ? ', and the setup fee is waived for the first ' + o.spots + ' shops' : ''}.`,
       footer(s, unsub),

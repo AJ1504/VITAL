@@ -12,7 +12,7 @@ A receptionist for 1–5 person trade shops (plumbing, HVAC, electrical, roofing
 
 ```bash
 npm start        # http://localhost:3000  — no dependencies, Node 20+
-npm test         # 37 tests: call script, calendar, phone line, setup, pause/undo, voice, outreach
+npm test         # 41 tests: call script, calendar, phone line, setup, pause/undo, voice, outreach, campaign
 ```
 
 With no settings at all, everything works except real phone calls: the landing-page demo, setup, test calls, dashboard, and settings all run, and every text that *would* be sent is printed to the console and saved in `data/db.json` (`outbox`).
@@ -66,6 +66,11 @@ Gemini is optional and only tidies the one-line job note; if it's missing or slo
    - A message comes in → `POST {PUBLIC_URL}/sms/incoming`
 4. Requests are checked against Twilio's signature whenever `TWILIO_AUTH_TOKEN` is set.
 5. US texting needs A2P 10DLC registration on the Twilio account before texts deliver reliably.
+
+**Going live on Render (about 10 minutes):**
+1. render.com → New → **Blueprint** → pick this GitHub repo. It reads `render.yaml` at the repo root and builds `secondline/Dockerfile`, with a 1 GB disk for the database (Starter plan, about $7/month plus about $0.25/month for the disk).
+2. Fill in the settings it asks for (see `.env.example`). Set `PUBLIC_URL` to the address Render gives you, or to your own domain once it's connected.
+3. Open `/admin/leads?key=<ADMIN_KEY>` (Render generated the key; it's under Environment).
 
 **Hosting:** any always-on Node host with a small persistent disk (Render, Fly.io, Railway, a $5 VPS). `data/db.json` is the whole database — fine for dozens of shops; move to Postgres at a few hundred. The repo's existing Netlify setup serves the other app and isn't a fit for this long-running server.
 
@@ -125,6 +130,27 @@ Or use the web page at `/admin/leads?key=ADMIN_KEY`. From there you can find sho
 - **Email only.** Cold texts or automated calls to shop owners' cell phones would break the TCPA, so the code doesn't do them.
 - Google review quotes are dropped after 30 days, and the demo page credits them to Google Maps (both are Google Places terms).
 - Without `RESEND_API_KEY`, it's in **practice mode**: every email is written to `data/outreach-outbox/` for you to read.
+
+### Nationwide campaign
+
+`src/outreach/campaign.js` works through a grid of **15 trades × 100 small and mid-size markets** (two in each of the 50 states, e.g. Salina KS, Bozeman MT, Hattiesburg MS). That's 1,500 searches. It aims where call answering is least likely to exist yet:
+- **Niche trades go first:** septic, well & pump, garage doors, tree service, water/fire restoration, pest control, appliance repair, chimney, mobile mechanics. These are mostly owner-operators who are under a truck or up a tree when the phone rings. The usual trades (plumbing, HVAC, electrical, roofing, towing, locksmith) come after.
+- **Small markets, not big metros.** The order hops between states, so the list fills in across the country, never two searches in a row in one state.
+- **Shops that already answer their phones are skipped.** When it reads a shop's website, it looks for answering services and AI receptionists (Smith.ai, Ruby, Goodcall, Numa, PATLive, "virtual receptionist"…). Those shops are marked "already has answering" and never emailed. Chat or booking tools (Podium, Housecall Pro, Jobber…) are noted but not skipped, because those shops still miss calls.
+- Shops whose Google reviews say they didn't pick up are emailed first.
+
+```bash
+node src/outreach/cli.js campaign status   # how far through the country, and what's next
+node src/outreach/cli.js campaign 10       # run the next 10 searches, then look up emails
+```
+
+Set `CAMPAIGN_AUTO=1` to run `CAMPAIGN_SEARCHES_PER_DAY` (8) searches every morning. Combined with `OUTREACH_AUTO=1`, the whole loop runs by itself:
+- finds new shops every morning
+- emails up to 25 a day on weekdays
+- sends follow-ups on day 3 and day 7
+- texts you when someone opens their demo
+
+Add your own towns with `CAMPAIGN_EXTRA_MARKETS="Lafayette, LA;Lafayette, IN"`. Each search costs about $0.04 at Google's reviews rate. 8 a day is about $10/month, and Google's monthly free credit covers early volume.
 
 **Before sending real email:** send from a separate domain (e.g. `trysecondline.com`, not your main one). Verify it in Resend and set up SPF/DKIM/DMARC. Warm it up for about 2 weeks at 10–20 emails a day.
 

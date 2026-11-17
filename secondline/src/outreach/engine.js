@@ -73,6 +73,13 @@ function createOutreach({ store, baseUrl, alert = () => {}, now = () => new Date
     let found = 0, missing = 0;
     for (const lead of leads().filter((l) => l.status === 'new').slice(0, limit)) {
       const r = await findEmail(lead.website);
+      if (r && r.signals) lead.signals = r.signals;
+      if (r && r.signals && r.signals.answering.length) {
+        lead.status = 'has-automation';
+        if (r.email) { lead.email = r.email; lead.emailSource = r.source; }
+        log(lead, `skipped: already uses ${r.signals.answering.join(', ')}`);
+        continue;
+      }
       if (r && r.email) {
         lead.email = r.email; lead.emailSource = r.source;
         lead.status = isSuppressed(r.email) ? 'unsubscribed' : 'ready';

@@ -1,0 +1,52 @@
+# One-click deploy on Render: New → Blueprint → pick this repo.
+# The disk keeps the database, call history and voice audio across deploys.
+services:
+  - type: web
+    name: secondline
+    runtime: docker
+    rootDir: secondline
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: secondline-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: PUBLIC_URL
+        sync: false
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: ADMIN_PHONE
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: DEMO_NUMBER
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VOICESTUDIO_URL
+        sync: false
+      - key: VOICESTUDIO_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: OUTREACH_FROM_NAME
+        sync: false
+      - key: OUTREACH_FROM_EMAIL
+        sync: false
+      - key: OUTREACH_ADDRESS
+        sync: false
+      - key: OUTREACH_AUTO
+        value: "0"
+      - key: CAMPAIGN_AUTO
+        value: "0"
+      - key: OUTREACH_DAILY_CAP
+        value: "25"
+      - key: CAMPAIGN_SEARCHES_PER_DAY
+        value: "8"

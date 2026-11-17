@@ -530,6 +530,15 @@ const LEAD_SUGGEST = {
   roofing: ['My roof is leaking into the bedroom', 'Need an inspection after the storm', 'How much is a new roof?'],
   towing: ["I'm stranded on the highway", 'Need a jump start', 'Can I talk to the owner?'],
   locksmith: ["I'm locked out of my house", 'Want my locks rekeyed', 'Can I talk to the owner?'],
+  septic: ['My septic is backing up into the house!', 'Need my tank pumped', 'Can I talk to the owner?'],
+  well: ['We have no water — the pump quit', 'Want our water tested', 'Can I talk to the owner?'],
+  garage: ["My garage door won't close", 'Need a new opener put in', 'How much is a spring?'],
+  appliance: ['My fridge stopped cooling', 'Washer is leaking', 'Can I talk to the owner?'],
+  tree: ['A tree fell on my house!', 'Need a big oak taken down', 'How much for stump grinding?'],
+  pest: ['There’s a wasp nest by the front door', 'We have mice', 'Can I talk to the owner?'],
+  restoration: ['My basement is flooded!', 'There’s mold in the bathroom', 'Do you work with insurance?'],
+  chimney: ['Need my chimney swept before winter', 'Smoke is coming into the room', 'Can I talk to the owner?'],
+  mechanic: ["My car won't start in the driveway", 'Need brakes done', 'Can you come to my work?'],
   other: ['I need something fixed this week', 'Is this an emergency line?', 'Can I talk to the owner?'],
 };
 
@@ -587,9 +596,9 @@ function unsubscribed({ ok }) {
   <p class="muted">${ok ? 'Sorry for the bother, and good luck out there.' : 'If you still get emails, just reply "stop" and we\'ll take you off by hand.'}</p></div>` });
 }
 
-const LEAD_STATUS = { new: ['Needs email', 'amber'], ready: ['Ready to send', 'ink'], 'no-email': ['No email found', ''], contacted: ['Emailed', ''], visited: ['Opened demo 🔥', 'green'], 'signed-up': ['Signed up', 'green'], replied: ['Replied', 'green'], 'not-interested': ['Not interested', ''], unsubscribed: ['Opted out', 'red'], bounced: ['Bounced', 'red'] };
+const LEAD_STATUS = { new: ['Needs email', 'amber'], ready: ['Ready to send', 'ink'], 'no-email': ['No email found', ''], contacted: ['Emailed', ''], visited: ['Opened demo 🔥', 'green'], 'signed-up': ['Signed up', 'green'], replied: ['Replied', 'green'], 'not-interested': ['Not interested', ''], unsubscribed: ['Opted out', 'red'], bounced: ['Bounced', 'red'], 'has-automation': ['Already has answering — skipped', ''] };
 
-function adminLeads({ list, key, summary, flash, auto }) {
+function adminLeads({ list, key, summary, flash, auto, campaign }) {
   const k = encodeURIComponent(key);
   const counts = Object.entries(summary.by).map(([st, n]) => `<span class="pill ${(LEAD_STATUS[st] || [])[1] || ''}">${esc((LEAD_STATUS[st] || [st])[0])}: ${n}</span>`).join(' ');
   const mode = summary.senderProblems.length ? `<span class="pill red">Can't send yet — set ${esc(summary.senderProblems.join(', '))}</span>`
@@ -600,6 +609,12 @@ function adminLeads({ list, key, summary, flash, auto }) {
   <p style="margin:10px 0" class="wrap-pills">${mode}</p>
   <p class="small" style="display:flex;gap:6px;flex-wrap:wrap">${counts || '<span class="muted">No leads yet.</span>'} <span class="pill">Sent today: ${summary.sentToday}</span> <span class="pill">Due now: ${summary.due}</span></p>
   ${flash ? `<div class="banner pilot" style="margin-top:12px">${esc(flash)}</div>` : ''}
+  ${campaign ? `<div class="card" style="margin-top:16px">
+    <p style="font-weight:800;color:var(--ink)">Nationwide campaign</p>
+    <p class="small muted">${campaign.done} of ${campaign.total} searches done (niche trades × small and mid-size markets, all 50 states)${campaign.auto ? ' · runs every morning by itself' : ''}.</p>
+    ${campaign.next.length ? `<p class="small" style="margin-top:6px">Next: ${campaign.next.map(esc).join(' · ')}</p>` : ''}
+    <form method="post" action="/admin/leads?key=${k}" style="margin-top:10px"><input type="hidden" name="do" value="campaign"><input type="hidden" name="count" value="5"><button class="btn sm">Run next 5 searches</button></form>
+  </div>` : ''}
   <div class="card" style="margin-top:16px">
     <form method="post" action="/admin/leads?key=${k}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <input type="hidden" name="do" value="find">
@@ -619,6 +634,7 @@ function adminLeads({ list, key, summary, flash, auto }) {
     <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b style="color:var(--ink);font-size:18px">${esc(l.name)}</b><span class="pill ${color}">${esc(label)}${l.step ? ` · email ${l.step}/3` : ''}${l.visits ? ` · ${l.visits} visit${l.visits > 1 ? 's' : ''}` : ''}</span></div>
     <p class="small muted">${esc(l.trade)} · ${esc(l.city || l.address)}${l.phone ? ` · <a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : ''}${l.email ? ` · ${esc(l.email)}` : ''}${l.rating ? ` · ★ ${esc(l.rating)} (${esc(l.reviewsCount)})` : ''}</p>
     ${l.quote ? `<p class="small" style="margin-top:6px">“${esc(l.quote)}”</p>` : ''}
+    ${l.signals && (l.signals.answering.length || l.signals.online.length) ? `<p class="tiny muted" style="margin-top:4px">On their site: ${esc([...l.signals.answering, ...l.signals.online].join(', '))}</p>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       <a class="btn ghost sm" href="/d/${esc(l.slug)}" target="_blank" rel="noopener">Their demo page</a>
       ${['contacted', 'visited'].includes(l.status) ? `<form method="post" action="/admin/leads?key=${k}"><input type="hidden" name="do" value="mark"><input type="hidden" name="id" value="${esc(l.id)}"><input type="hidden" name="status" value="replied"><button class="btn ghost sm">They replied — stop emails</button></form>` : ''}
