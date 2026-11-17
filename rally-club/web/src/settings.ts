@@ -21,6 +21,8 @@ export interface Settings {
   timingRing: boolean;
   /** Credit a paired phone's network delay to its swings. */
   latencyComp: boolean;
+  /** Lower the render resolution automatically when frames run slow. */
+  autoResolution: boolean;
   memberId: string;
   assist: AssistLevel;
   difficulty: Difficulty;
@@ -49,6 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
   crowdRate: 30,
   timingRing: true,
   latencyComp: true,
+  autoResolution: true,
   memberId: 'theo',
   assist: 'casual',
   difficulty: 'medium',

@@ -255,3 +255,17 @@ body.high-contrast #scoreboard, body.high-contrast #subtitle { background: #fff;
 .pair-status.on { color: var(--accent-deep); }
 .hint { margin: 0; font-size: 0.78em; color: var(--soft); font-weight: 600; line-height: 1.6; }
 #phone-chip { position: absolute; top: max(66px, calc(env(safe-area-inset-top) + 66px)); right: max(14px, env(safe-area-inset-right)); background: var(--card); color: var(--accent-deep); font-weight: 800; font-size: 0.78em; padding: 6px 12px; border-radius: 99px; box-shadow: 0 6px 16px rgba(60, 70, 50, 0.16); }
+
+/* Short and mid-size screens: keep all six arenas and the play buttons on screen. */
+#menu { overflow-y: auto; overscroll-behavior: contain; }
+.play-row { position: sticky; bottom: 0; padding-block: 6px; z-index: 2; }
+@media (max-width: 1180px) and (min-width: 761px) { .panel-courts .courts { grid-template-columns: repeat(6, minmax(0, 1fr)); } .court-card .cc-sport { display: none; } }
+@media (max-width: 760px) { .panel-courts .courts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-height: 820px) {
+  .logo-mark { width: clamp(120px, 14vw, 190px); }
+  .tabs { margin-top: 8px; }
+  .cc-preview { aspect-ratio: 300 / 150; }
+  .court-card p { display: none; }
+  .court-card { gap: 3px; padding: 6px 6px 8px; }
+}
+@media (max-height: 560px) { .logo-tag { display: none; } .cc-preview { aspect-ratio: 300 / 120; } }

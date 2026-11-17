@@ -231,6 +231,67 @@ await test('8. phone controller view (#pad-1234) renders its swing pad and pairi
   await ctx.close();
 });
 
+await test('9. phone remote end-to-end over a stand-in room: pair, start a match and serve from the phone', async () => {
+  // Stand-in for the claude.ai room: tabs of one browser context talk over a BroadcastChannel.
+  const fakeRoom = () => {
+    const me = Math.random().toString(36).slice(2);
+    const named = (name) => {
+      const ch = new BroadcastChannel('room-' + name);
+      const handlers = {};
+      const peerHandlers = [];
+      const peers = new Map();
+      let mine = {};
+      const list = () => [{ peer: me, isMe: true, presence: mine }, ...[...peers.entries()].map(([peer, presence]) => ({ peer, isMe: false, presence }))];
+      const firePeers = () => peerHandlers.forEach((h) => h({ peers: list(), joined: [], left: [], updated: [] }));
+      ch.onmessage = (e) => {
+        const m = e.data;
+        if (m.kind === 'presence') { peers.set(m.from, m.presence); firePeers(); if (m.hello) ch.postMessage({ kind: 'presence', from: me, presence: mine }); }
+        else (handlers[m.topic] || []).forEach((h) => h({ isMe: false, data: m.data, topic: m.topic }));
+      };
+      return {
+        name,
+        emit: async (topic, data) => ch.postMessage({ kind: 'msg', topic, data, from: me }),
+        on: (topic, h) => { (handlers[topic] ||= []).push(h); return () => {}; },
+        presence: async (patch) => { mine = { ...mine, ...patch }; ch.postMessage({ kind: 'presence', from: me, presence: mine, hello: true }); firePeers(); },
+        peers: list,
+        onPeers: (h) => { peerHandlers.push(h); setTimeout(firePeers, 0); return () => {}; },
+        connected: () => true,
+      };
+    };
+    window.claude = { use: async (n) => (n === 'room' ? { join: async (name) => named(name) } : null) };
+  };
+  const ctx = await browser.newContext({ viewport: { width: 1000, height: 640 } });
+  openContexts.push(ctx);
+  await ctx.addInitScript(fakeRoom);
+  const game = await ctx.newPage();
+  const errors = [];
+  game.on('pageerror', (e) => errors.push(e.message));
+  await game.goto(`${BASE}?mute&nointro&gfx=low&assist=casual`, { waitUntil: 'domcontentloaded' });
+  await game.waitForFunction(() => window.__rally?.state?.().assetsReady, null, { timeout: 120000 });
+  await game.click('#btn-pair-menu');
+  await game.waitForFunction(() => /\d/.test(document.querySelector('#pair-code')?.textContent ?? ''), null, { timeout: 10000 });
+  const code = ((await game.textContent('#pair-code')) ?? '').replace(/\s/g, '');
+  const pad = await ctx.newPage();
+  pad.on('pageerror', (e) => errors.push(e.message));
+  await pad.setViewportSize({ width: 390, height: 844 });
+  await pad.goto(`${BASE}#pad-${code}`, { waitUntil: 'domcontentloaded' });
+  await pad.waitForFunction(() => document.querySelector('#pad-conn')?.textContent === 'Connected', null, { timeout: 20000 });
+  await game.waitForFunction(() => /connected/i.test(document.querySelector('#pair-status')?.textContent ?? ''), null, { timeout: 10000 });
+  await game.click('#btn-pair-close');
+  // Start the match from the phone's remote row.
+  await pad.waitForSelector('#pad-remote button.go', { timeout: 10000 });
+  await pad.click('#pad-remote button.go');
+  await waitFor(game, (s) => s.screen === 'hud' && s.phase === 'awaiting_serve', 30000, 'match started from the phone');
+  await waitFor(game, (s) => s.server === 0, 5000, 'player serves');
+  await game.waitForTimeout(800);
+  await pad.dispatchEvent('#pad-zone', 'pointerdown');
+  await waitFor(game, (s) => s.phase === 'in_play' || s.pointsPlayed > 0, 15000, 'serve hit from the phone');
+  await pad.waitForFunction(() => /\d-\d/.test(document.querySelector('#pad-pts')?.textContent ?? ''), null, { timeout: 10000 });
+  await pad.screenshot({ timeout: 240000, path: `${shots}13-phone-remote.png` });
+  assert(errors.length === 0, `page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+});
+
 await browser.close();
 stopServer();
 const failed = results.filter((r) => !r.ok);

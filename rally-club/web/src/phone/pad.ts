@@ -33,7 +33,14 @@ html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); c
 .pad-row button:active { transform: scale(.97); }
 .pad-move { position: relative; height: 64px; border-radius: 20px; background: var(--card); }
 .pad-move i { position: absolute; top: 8px; bottom: 8px; width: 64px; left: calc(50% - 32px); border-radius: 14px; background: var(--accent); opacity: .85; }
-.pad-move small { position: absolute; inset: 0; display: grid; place-items: center; color: var(--soft); font-weight: 700; pointer-events: none; }
+.pad-move small { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 18px; color: var(--soft); font-weight: 800; font-size: 20px; pointer-events: none; }
+.pad-score { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 800; background: var(--card); border-radius: 16px; padding: 8px 14px; }
+.pad-score b { font-family: Fredoka, Nunito, sans-serif; font-size: 22px; font-variant-numeric: tabular-nums; }
+.pad-score i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #e5f04a; margin-right: 6px; vertical-align: 1px; }
+.pad-remote { display: flex; gap: 8px; }
+.pad-remote button { flex: 1; font: inherit; font-weight: 800; border: 0; border-radius: 16px; min-height: 48px; background: var(--card); color: var(--ink); font-size: 15px; }
+.pad-remote button.go { background: var(--accent); color: #fff; }
+.pad-zone.ready { background: var(--hit); box-shadow: 0 0 0 6px rgba(233,185,73,.35), inset 0 -8px 0 rgba(0,0,0,.08); }
 .pad-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--soft); }
 .pad-code { margin: auto 0; display: flex; flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
 .pad-code input { font: inherit; font-size: 40px; letter-spacing: .3em; text-align: center; padding: 12px; border-radius: 18px; border: 2px solid var(--soft); background: var(--card); color: var(--ink); }
@@ -65,12 +72,15 @@ export async function startPad(codeFromHash: string | null): Promise<void> {
 async function run(wrap: HTMLElement, code: string): Promise<void> {
   wrap.innerHTML = `
     <div class="pad-top"><span class="pad-brand">Vital · pad ${code}</span><span class="pad-conn" id="pad-conn">Connecting…</span></div>
+    <div class="pad-score" id="pad-score"><span id="pad-arena">Vital</span><b id="pad-pts"></b></div>
+    <div class="pad-remote" id="pad-remote"></div>
     <div class="pad-zone" id="pad-zone" role="button" aria-label="Swing"><div class="pad-fb" id="pad-fb"></div><b>SWING</b><span>Tap as the ball reaches you</span></div>
     <div class="pad-row"><button id="pad-dink" type="button">Dink</button><button id="pad-lob" type="button">Lob</button></div>
-    <div class="pad-move" id="pad-move" aria-label="Move left or right"><i id="pad-knob"></i><small>◀ slide to move ▶</small></div>
+    <div class="pad-move" id="pad-move" aria-label="Move left or right"><i id="pad-knob"></i><small><span>◀</span><span>▶</span></small></div>
     <div class="pad-meta"><span id="pad-lat">Latency —</span><span id="pad-motion"></span></div>`;
   const $ = (id: string) => wrap.querySelector<HTMLElement>('#' + id)!;
   const conn = $('pad-conn');
+  const zone = $('pad-zone');
   const c = (window as { claude?: { use(n: string): Promise<unknown> } }).claude;
   const lobby = c?.use ? ((await c.use('room')) as { join(n: string): Promise<Room> } | null) : null;
   if (!lobby) {
@@ -87,10 +97,53 @@ async function run(wrap: HTMLElement, code: string): Promise<void> {
   let lat = 60;
   let gamePresent = false;
   void room.presence({ role: 'pad', mx: 0 }).catch(() => {});
+  // The game shares its screen, arena and score as presence; the remote row follows the screen.
+  let lastScreen = '';
+  const cmd = (what: string) => {
+    void room.emit('cmd', { do: what }).catch(() => {});
+    vibrate(8);
+  };
+  const remote = $('pad-remote');
+  const renderRemote = (screen: string) => {
+    if (screen === lastScreen) return;
+    lastScreen = screen;
+    const btn = (label: string, what: string, go = false) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      if (go) b.className = 'go';
+      b.addEventListener('click', () => cmd(what));
+      return b;
+    };
+    const sets: Record<string, HTMLButtonElement[]> = {
+      menu: [btn('◀', 'arena-prev'), btn('Play match', 'match', true), btn('Practice', 'practice'), btn('▶', 'arena-next')],
+      play: [btn('Pause', 'pause'), btn('Camera', 'camera')],
+      pause: [btn('Resume', 'resume', true), btn('Restart', 'rematch'), btn('Menu', 'menu')],
+      results: [btn('Rematch', 'rematch', true), btn('Menu', 'menu')],
+    };
+    remote.replaceChildren(...(sets[screen] ?? []));
+  };
   room.onPeers((ch) => {
-    gamePresent = ch.peers.some((p) => !p.isMe && p.presence?.role === 'game');
+    const game = ch.peers.find((p) => !p.isMe && p.presence?.role === 'game');
+    gamePresent = !!game;
     conn.textContent = gamePresent ? 'Connected' : 'Waiting for the game…';
     conn.classList.toggle('on', gamePresent);
+    const st = (game?.presence ?? {}) as { screen?: string; arena?: string; score?: string; serving?: boolean };
+    $('pad-arena').textContent = st.arena || 'Vital';
+    const pts = $('pad-pts');
+    pts.replaceChildren();
+    if (st.score) {
+      if (st.serving) pts.append(document.createElement('i'));
+      pts.append(st.score);
+    }
+    renderRemote(gamePresent ? (st.screen ?? 'menu') : '');
+  });
+  // "Get ready": the game sends this just before the ideal swing moment (network delay included).
+  room.on('cue', (m) => {
+    if (m.isMe) return;
+    zone.classList.add('ready');
+    vibrate(18);
+    setTimeout(() => zone.classList.remove('ready'), 420);
   });
   // Latency: round trip / 2, smoothed.
   room.on('pong', (m) => {
@@ -126,7 +179,6 @@ async function run(wrap: HTMLElement, code: string): Promise<void> {
     fbTimer = window.setTimeout(() => fbEl.classList.remove('show'), 900);
   });
 
-  const zone = $('pad-zone');
   const swing = (shot: 'auto' | 'dink' | 'lob') => {
     void room.emit('swing', { shot, lat: Math.round(lat) }).catch(() => {});
     vibrate(12);
@@ -186,11 +238,13 @@ async function run(wrap: HTMLElement, code: string): Promise<void> {
   window.addEventListener('devicemotion', (ev) => {
     const r = ev.rotationRate;
     if (!r) return;
-    if (!motionSeen) {
+    const speed = Math.hypot(r.alpha ?? 0, r.beta ?? 0, r.gamma ?? 0);
+    // Only real movement proves the sensor works (some browsers send all-zero events).
+    if (!motionSeen && speed > 5) {
       motionSeen = true;
       $('pad-motion').textContent = 'Motion swing on';
     }
-    const speed = Math.hypot(r.alpha ?? 0, r.beta ?? 0, r.gamma ?? 0);
+    if (!motionSeen) return;
     const now = performance.now();
     if (speed > 420 && now - lastSwing > 450) {
       lastSwing = now;

@@ -3,6 +3,9 @@
 // swings as messages and its movement as presence; the game answers pings (so the phone can measure
 // latency) and sends hit feedback for haptics. Outside claude.ai there is no room: pairing is hidden.
 
+export const PAD_COMMANDS = ['match', 'practice', 'arena-next', 'arena-prev', 'pause', 'resume', 'rematch', 'menu', 'camera'] as const;
+export type PadCommand = (typeof PAD_COMMANDS)[number];
+
 export interface PadSwing {
   shot: 'auto' | 'dink' | 'lob' | 'drive';
   /** One-way latency estimate in ms, measured on the phone. */
@@ -21,13 +24,29 @@ type Room = {
 export const GAME_URL = 'https://claude.ai/artifact/TWbzMdECKcrgvUPz7sh5h9';
 
 export class PhoneLink {
-  readonly code = String(1000 + Math.floor(Math.random() * 9000));
+  /** Kept across reloads so a paired phone reconnects by itself. */
+  readonly code = PhoneLink.savedCode();
   connected = false;
   available = false;
   latencyMs = 0;
   moveX = 0;
   onSwing: ((s: PadSwing) => void) | null = null;
   onStatus: ((connected: boolean) => void) | null = null;
+  /** Remote commands from the phone (start a match, change arena, pause…). */
+  onCommand: ((cmd: PadCommand) => void) | null = null;
+  private state: Record<string, unknown> = { role: 'game' };
+
+  private static savedCode(): string {
+    try {
+      const c = localStorage.getItem('vital.padCode');
+      if (c && /^\d{4}$/.test(c)) return c;
+      const n = String(1000 + Math.floor(Math.random() * 9000));
+      localStorage.setItem('vital.padCode', n);
+      return n;
+    } catch {
+      return String(1000 + Math.floor(Math.random() * 9000));
+    }
+  }
   private room: Room | null = null;
   private starting: Promise<boolean> | null = null;
 
@@ -55,7 +74,12 @@ export class PhoneLink {
     }
     this.available = true;
     const room = this.room;
-    void room.presence({ role: 'game' }).catch(() => {});
+    void room.presence(this.state).catch(() => {});
+    room.on('cmd', (m) => {
+      if (m.isMe) return;
+      const d = (m.data ?? {}) as { do?: string };
+      if (typeof d.do === 'string' && PAD_COMMANDS.includes(d.do as PadCommand)) this.onCommand?.(d.do as PadCommand);
+    });
     room.on('swing', (m) => {
       if (m.isMe) return;
       const d = (m.data ?? {}) as Partial<PadSwing>;
@@ -77,6 +101,26 @@ export class PhoneLink {
       if (was !== this.connected) this.onStatus?.(this.connected);
     });
     return true;
+  }
+
+  /**
+   * Share what the phone should show (screen, score, arena…) as presence: late joiners get it too.
+   * Only changed fields are sent.
+   */
+  setState(patch: Record<string, unknown>): void {
+    let changed = false;
+    for (const [k, v] of Object.entries(patch)) {
+      if (this.state[k] !== v) {
+        this.state[k] = v;
+        changed = true;
+      }
+    }
+    if (changed && this.room) void this.room.presence(this.state).catch(() => {});
+  }
+
+  /** "Get ready" pulse: the ball reaches you in `inSec` seconds (+ the ideal swing lead). */
+  cue(inSec: number): void {
+    if (this.connected) void this.room?.emit('cue', { in: Math.round(inSec * 1000) }).catch(() => {});
   }
 
   /** Hit / point feedback for the phone (label + haptic). Fire-and-forget. */

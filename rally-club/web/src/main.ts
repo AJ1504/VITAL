@@ -9,7 +9,7 @@ import type { ArenaId } from './arenas/config.ts';
 import { ARENAS, ARENA_IDS } from './arenas/presets.ts';
 import { drawArenaPreview } from './arenas/preview.ts';
 import qrcode from 'qrcode-generator';
-import { PhoneLink } from './phone/link.ts';
+import { type PadCommand, PhoneLink } from './phone/link.ts';
 import type { InputShot } from './input/input.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -302,28 +302,99 @@ function setPairStatus(): void {
   }
   $('#phone-chip').hidden = !phone.connected;
 }
+/** Which screen is showing, for the phone. */
+function screenName(): string {
+  if (!$('#results').hidden) return 'results';
+  if (!$('#pause').hidden) return 'pause';
+  if (!$('#menu').hidden) return 'menu';
+  return 'play';
+}
+/** Commands from the phone: the phone works as a full remote, not just a paddle. */
+function onPadCommand(cmd: PadCommand): void {
+  const screen = screenName();
+  const ids = ARENA_IDS;
+  switch (cmd) {
+    case 'match':
+    case 'practice':
+      if (screen === 'menu') void start({ mode: cmd });
+      break;
+    case 'arena-next':
+    case 'arena-prev':
+      if (screen === 'menu') {
+        const i = ids.indexOf(game.arenaId);
+        selectArena(ids[(i + (cmd === 'arena-next' ? 1 : ids.length - 1)) % ids.length]);
+      }
+      break;
+    case 'pause':
+      if (screen === 'play' && game.sim) show('pause');
+      break;
+    case 'resume':
+      if (screen === 'pause') show('hud');
+      break;
+    case 'rematch':
+      if (screen === 'results' || screen === 'pause') void start(lastConfig);
+      break;
+    case 'menu':
+      if (screen !== 'menu') toMenu();
+      break;
+    case 'camera':
+      if (screen === 'play') cycleCam();
+      break;
+  }
+}
+/** Set up the phone link once (the room is joined only when pairing is asked for or was used before). */
+function ensurePhone(): PhoneLink {
+  if (phone) return phone;
+  phone = new PhoneLink();
+  game.phone = phone;
+  phone.onSwing = (sw) => {
+    const lead = game.settings.latencyComp === false ? 0 : sw.lat / 1000;
+    game.input.remote(sw.shot === 'drive' ? 'auto' : sw.shot, lead);
+  };
+  phone.onCommand = onPadCommand;
+  phone.onStatus = () => {
+    setPairStatus();
+    if (phone?.connected) {
+      ui.toast('Phone connected');
+      try {
+        localStorage.setItem('vital.padUsed', '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+  window.setInterval(() => {
+    if (!phone) return;
+    game.input.remoteMoveX = phone.connected ? phone.moveX : 0;
+    // What the phone shows: screen, arena, score and who serves (only changes are sent).
+    const sim = game.sim;
+    const st = sim?.rules.state;
+    phone.setState({
+      screen: screenName(),
+      arena: ARENAS[game.arenaId].name,
+      score: st ? `${st.score[0]}-${st.score[1]}` : '',
+      serving: st ? st.server === 0 : false,
+      names: game.sim ? `${$('.sb-row[data-side="0"] .sb-name').textContent}|${$('.sb-row[data-side="1"] .sb-name').textContent}` : '',
+    });
+  }, 250);
+  $('#pair-code').textContent = phone.code.split('').join(' ');
+  drawQr(phone.padUrl);
+  return phone;
+}
+// A phone that was paired before reconnects automatically after a reload (same code is kept).
+try {
+  if (localStorage.getItem('vital.padUsed') === '1') void ensurePhone().start().then(setPairStatus);
+} catch {
+  /* ignore */
+}
 async function openPair(): Promise<void> {
   game.audio.uiClick();
   $('#pair').hidden = false;
   if (!phone) {
-    phone = new PhoneLink();
-    game.phone = phone;
-    phone.onSwing = (sw) => {
-      const lead = game.settings.latencyComp === false ? 0 : sw.lat / 1000;
-      game.input.remote(sw.shot === 'drive' ? 'auto' : sw.shot, lead);
-    };
-    phone.onStatus = () => {
-      setPairStatus();
-      if (phone?.connected) ui.toast('Phone connected');
-    };
-    window.setInterval(() => {
-      if (phone) game.input.remoteMoveX = phone.connected ? phone.moveX : 0;
-    }, 50);
-    $('#pair-code').textContent = phone.code.split('').join(' ');
-    drawQr(phone.padUrl);
+    ensurePhone();
   }
   $('#pair-status').textContent = 'Starting…';
-  await phone.start();
+  await phone!.start();
   setPairStatus();
 }
 $('#btn-pair').addEventListener('click', () => void openPair());
@@ -438,6 +509,7 @@ function bindSettings(): void {
   check('#set-haptics', 'haptics');
   check('#set-ring', 'timingRing');
   check('#set-latency', 'latencyComp');
+  check('#set-autores', 'autoResolution');
   const name = $<HTMLInputElement>('#set-name');
   name.value = s.playerName;
   name.addEventListener('change', () => {

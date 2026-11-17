@@ -206,3 +206,15 @@ Implements the "Court Arena Concepts" brief. Design and structure: `docs/ARENAS.
 | Latency compensation: the phone measures round-trip time; each swing carries its delay, credited to the swing timer (`SwingRequest.lead`, clamped 0–0.2 s) | ✅ | ✅ unit + parity unchanged | C++ core does not read `lead` yet (only phone input sets it) |
 | Controls settings: pair phone, timing ring on/off, phone delay compensation, key and gamepad reference | ✅ | ✅ typecheck + e2e | |
 | Character pipeline guide (Gemini → Tripo/Meshy → Mixamo → GitHub) | ✅ docs | — | `docs/CHARACTER_PIPELINE.md` |
+
+## Pass 10 — phone as a full remote, smooth-motion scaling, menu fit (17 Nov 2026)
+
+| Feature | Implemented | Tested | Notes |
+| --- | --- | --- | --- |
+| Phone remote: start a match or practice, cycle arenas, pause / resume / restart / rematch / menu, change camera; buttons follow the game's screen | ✅ | ✅ e2e test 9 (stand-in room: pair → start match → serve from the phone → score on phone) | |
+| Phone scoreboard strip (arena, score, serve dot) from the game's presence | ✅ | ✅ e2e test 9 screenshot | |
+| "Get ready" pulse: pad glows gold and buzzes just before the ideal swing moment, sent early by the measured delay | ✅ | ✅ typecheck; visual only in a live match | Vibration on Android only |
+| Pairing survives reloads (code kept); a phone that paired before reconnects automatically | ✅ | ✅ typecheck | |
+| Auto resolution: renders fewer pixels (down to 60 %) when frames run slow, steps back up with headroom; setting to turn it off | ✅ | ✅ unit/e2e unaffected | |
+| Menu fits short laptop windows: six compact arena cards in one row, sticky play buttons, the menu scrolls if needed | ✅ | ✅ still at 1000 × 640 | Fixes play buttons pushed off-screen |
+| Motion-swing label only appears after real phone movement | ✅ | ✅ | |

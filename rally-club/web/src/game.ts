@@ -95,6 +95,32 @@ export class Game {
   readonly input = new InputManager();
   /** Paired phone controller (null until pairing starts). */
   phone: PhoneLink | null = null;
+  private phoneCuedAt = -1;
+  private basePixelRatio = 1;
+
+  /**
+   * Keep motion fluid on any device: when frames run slow for a couple of seconds, render fewer pixels
+   * (down to 60 %); when there is headroom, step back up. Only the resolution changes, never the sim.
+   */
+  private adaptResolution(dt: number): void {
+    if (this.settings.autoResolution === false || document.hidden) return;
+    this.frameAvg += (dt - this.frameAvg) * 0.05;
+    this.resCheck += dt;
+    if (this.resCheck < 1.5) return;
+    this.resCheck = 0;
+    let next = this.resScale;
+    if (this.frameAvg > 1 / 48) next = Math.max(0.6, this.resScale - 0.1);
+    else if (this.frameAvg < 1 / 58 && this.resScale < 1) next = Math.min(1, this.resScale + 0.05);
+    if (next !== this.resScale) {
+      this.resScale = next;
+      this.renderer.setPixelRatio(this.basePixelRatio * next);
+      this.resize();
+    }
+  }
+  /** Dynamic resolution: current pixel-ratio scale and a frame-time average. */
+  private resScale = 1;
+  private frameAvg = 1 / 60;
+  private resCheck = 0;
   venue: Venue;
   crowd: Crowd;
   sim: MatchSim | null = null;
@@ -365,7 +391,8 @@ export class Game {
     this.settings = s;
     // Performance: modest pixel ratios; post-processing only on High.
     const pr = s.graphics === 'low' ? 0.85 : s.graphics === 'medium' ? Math.min(devicePixelRatio, 1.25) : Math.min(devicePixelRatio, 1.75);
-    this.renderer.setPixelRatio(pr);
+    this.basePixelRatio = pr;
+    this.renderer.setPixelRatio(pr * this.resScale);
     this.venue.sun.shadow.mapSize.setScalar(s.graphics === 'low' ? 1024 : 2048);
     this.venue.sun.shadow.map?.dispose();
     (this.venue.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
@@ -511,6 +538,7 @@ export class Game {
 
   private frame(): void {
     const real = this.fixedDt > 0 ? this.fixedDt : Math.min(this.clock.getDelta(), 0.1);
+    if (!this.fixedDt) this.adaptResolution(real);
     const beat = this.audio.beatPhase();
     const sim = this.sim;
 
@@ -824,6 +852,15 @@ export class Game {
           if (plan) {
             const remaining = plan.timeToContact - (sim.time - plan.computedAt);
             const right = (plan.contact.x - p.pos.x) * sideSign(side);
+            // Phone "get ready" pulse: sent early by the phone's network delay so it lands just before
+            // the ideal swing moment (once per incoming shot).
+            if (side === 0 && this.phone?.connected && this.phoneCuedAt !== st.hitCount) {
+              const lead = SWING_IDEAL + 0.3 + this.phone.latencyMs / 1000;
+              if (remaining <= lead) {
+                this.phoneCuedAt = st.hitCount;
+                this.phone.cue(Math.max(0, remaining - SWING_IDEAL));
+              }
+            }
             pal.anticipate(right >= -0.05 ? 'fh' : 'bh', THREE.MathUtils.clamp(1 - (remaining - 0.12) / 0.5, 0, 1));
             // Timing cue under your player: brightest at the ideal moment to press swing.
             if (side === 0 && !this.ais[0] && (this.settings.assist !== 'precision' || !this.coachDone)) {
