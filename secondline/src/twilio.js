@@ -77,17 +77,22 @@ function xml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Natural-voice audio when we have it for every sentence, the standard phone voice otherwise.
+function voiceOut(text, audio) {
+  if (audio && audio.length) return audio.map((u) => `<Play>${xml(u)}</Play>`).join('');
+  return `<Say voice="${xml(config().voice)}">${xml(text)}</Say>`;
+}
+
 const twiml = {
   // Say something and listen for the caller's answer.
-  ask(text, action) {
-    const v = config().voice;
+  ask(text, action, audio) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response>`
       + `<Gather input="speech" action="${xml(action)}" method="POST" speechTimeout="auto" speechModel="phone_call" enhanced="true" language="en-US" actionOnEmptyResult="true">`
-      + `<Say voice="${xml(v)}">${xml(text)}</Say></Gather>`
+      + voiceOut(text, audio) + `</Gather>`
       + `<Redirect method="POST">${xml(action)}</Redirect></Response>`;
   },
-  sayAndHangUp(text) {
-    return `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="${xml(config().voice)}">${xml(text)}</Say><Hangup/></Response>`;
+  sayAndHangUp(text, audio) {
+    return `<?xml version="1.0" encoding="UTF-8"?><Response>${voiceOut(text, audio)}<Hangup/></Response>`;
   },
   // Used while the owner has paused their second line: a plain voicemail.
   voicemail(text, action) {

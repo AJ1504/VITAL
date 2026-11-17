@@ -37,6 +37,28 @@
     return vs[0] || null;
   }
 
+  // Natural voice clips from the server, played one after another.
+  var current = null;
+  function playClips(urls, fallbackText) {
+    stopAll();
+    var i = 0;
+    function next() {
+      if (i >= urls.length) { current = null; return; }
+      var a = new Audio(urls[i++]);
+      current = a;
+      a.onended = next;
+      a.play().catch(function () { current = null; if (fallbackText) speak(fallbackText); });
+    }
+    next();
+  }
+  function stopAll() {
+    if (current) { try { current.pause(); } catch (e) { /* ignore */ } current = null; }
+    try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+  }
+  function voice(text, audio) {
+    if (audio && audio.length) playClips(audio, text); else speak(text);
+  }
+
   function speak(text) {
     try {
       if (!('speechSynthesis' in window)) return;
@@ -82,18 +104,21 @@
       self.voiceBtn.textContent = on ? '🔊' : '🔈';
       if (on) {
         var last = self.convo.querySelectorAll('.bubble.agent');
-        if (last.length) speak(last[last.length - 1].lastChild.textContent);
-      } else if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        if (last.length) { var lb = last[last.length - 1]; voice(lb.lastChild.textContent, JSON.parse(lb.getAttribute('data-audio') || '[]')); }
+      } else stopAll();
     });
   }
 
-  Convo.prototype.add = function (who, text) {
+  Convo.prototype.add = function (who, text, audio) {
     var b = el('div', 'bubble ' + who);
     b.appendChild(el('span', 'who', who === 'agent' ? (this.opts.agentName() || 'Receptionist') : 'You'));
     b.appendChild(document.createTextNode(text));
     this.convo.appendChild(b);
     this.convo.scrollTop = this.convo.scrollHeight;
-    if (who === 'agent' && this.voiceBtn.getAttribute('aria-pressed') === 'true') speak(text);
+    if (who === 'agent') {
+      b.setAttribute('data-audio', JSON.stringify(audio || []));
+      if (this.voiceBtn.getAttribute('aria-pressed') === 'true') voice(text, audio);
+    }
   };
 
   Convo.prototype.typing = function (on) {
@@ -125,7 +150,7 @@
       self.typing(false);
       if (!r || r.error) throw new Error(r && r.error);
       self.session = r.session;
-      self.add('agent', r.say);
+      self.add('agent', r.say, r.audio);
       self.setSuggestions(self.base);
     }).catch(function (e) {
       self.typing(false);
@@ -150,7 +175,7 @@
         self.busy = false;
         if (!r || r.error) { self.add('agent', (r && r.error) || 'Sorry, the line dropped. Tap ↻ to start again.'); return; }
         self.turns++;
-        self.add('agent', r.say);
+        self.add('agent', r.say, r.audio);
         if (r.ownerText) self.showResult(r);
         if (r.end) {
           self.ended = true;
@@ -201,6 +226,7 @@
 
   window.Convo = Convo;
   window.SLspeak = speak;
+  window.SLvoice = voice;
   window.SLpost = function (url, body) {
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
       .then(function (r) { return r.json(); });

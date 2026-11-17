@@ -147,3 +147,28 @@ test('unknown links and bad tokens are 404s', async () => {
     assert.equal((await fetch(`${t.base}/public/../src/server.js`)).status, 404);
   } finally { await t.stop(); }
 });
+
+test('outreach: personal demo page, signup locks in the offer, opt-out page', async () => {
+  const t = await start();
+  try {
+    const { createOutreach } = require('../src/outreach/engine');
+    const o = createOutreach({ store: t.store, baseUrl: () => t.base });
+    const { lead } = o.addLead({ name: 'Riverside Plumbing', trade: 'plumbing', email: 'info@riverside.test', quote: 'Nobody called me back.' });
+    const pageRes = await fetch(`${t.base}/d/${lead.slug}`);
+    assert.equal(pageRes.status, 200);
+    const html = await pageRes.text();
+    assert.match(html, /Riverside Plumbing, your receptionist is ready/);
+    assert.match(html, /Nobody called me back/);
+    assert.match(html, /noindex/);
+    const s = await t.post(`/api/lead/${lead.slug}/start`, {});
+    assert.match(s.body.say, /Riverside Plumbing's office/);
+    const r = await t.post('/api/setup', { ...SETUP, name: 'Riverside Plumbing', lead: lead.slug });
+    const biz = t.store.businessByToken(r.body.token);
+    assert.equal(biz.setupFee, 0, 'founding offer: no setup fee');
+    assert.equal(t.store.data.leads[lead.id].status, 'signed-up');
+    assert.match(await (await fetch(`${t.base}/u/${lead.unsubToken}`)).text(), /Stop these emails\?/);
+    assert.equal(t.store.data.leads[lead.id].status, 'signed-up', 'GET alone does not opt out');
+    await fetch(`${t.base}/u/${lead.unsubToken}`, { method: 'POST' });
+    assert.equal(t.store.data.suppressed['info@riverside.test'] !== undefined, true);
+  } finally { await t.stop(); }
+});

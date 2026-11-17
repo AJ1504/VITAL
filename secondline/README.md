@@ -12,7 +12,7 @@ A receptionist for 1–5 person trade shops (plumbing, HVAC, electrical, roofing
 
 ```bash
 npm start        # http://localhost:3000  — no dependencies, Node 20+
-npm test         # 25 tests: call script, calendar, phone line, setup, pause/undo
+npm test         # 37 tests: call script, calendar, phone line, setup, pause/undo, voice, outreach
 ```
 
 With no settings at all, everything works except real phone calls: the landing-page demo, setup, test calls, dashboard, and settings all run, and every text that *would* be sent is printed to the console and saved in `data/db.json` (`outbox`).
@@ -68,6 +68,65 @@ Gemini is optional and only tidies the one-line job note; if it's missing or slo
 5. US texting needs A2P 10DLC registration on the Twilio account before texts deliver reliably.
 
 **Hosting:** any always-on Node host with a small persistent disk (Render, Fly.io, Railway, a $5 VPS). `data/db.json` is the whole database — fine for dozens of shops; move to Postgres at a few hundred. The repo's existing Netlify setup serves the other app and isn't a fit for this long-running server.
+
+## Natural voice (VoiceStudio — free, self-hosted)
+
+By default callers hear Twilio's neural voice. For a more natural voice, run [VoiceStudio](https://github.com/debpalash/VoiceStudio) beside SecondLine and set `VOICESTUDIO_URL`.
+
+```bash
+# On a machine with an NVIDIA GPU (CPU works too, slower). Pin an exact release.
+docker run -d --name voicestudio --gpus all -p 127.0.0.1:3900:3900 \
+  -e OMNIVOICE_API_KEY=<long random key> \
+  -v voicestudio-data:/app/omnivoice_data ghcr.io/debpalash/voicestudio:0.5.6
+# then in SecondLine's .env:
+VOICESTUDIO_URL=http://127.0.0.1:3900
+VOICESTUDIO_API_KEY=<same key>
+```
+
+How it works (`src/tts.js`):
+- Every reply is split into sentences. Each sentence is rendered once through VoiceStudio's `POST /v1/audio/speech` and cached in `data/audio/`, so lines like "Can I get your name?" are instant after the first call. When a shop goes live, its greeting and common questions are rendered ahead of time.
+- On a live call, if any sentence isn't ready within `VOICESTUDIO_TIMEOUT_MS` (2.5s), that reply uses the standard Twilio voice instead — callers never wait on silence, and one reply never switches voices halfway.
+- The landing-page demo, each shop's personal demo, and the "Play greeting" button in setup use the same voice when it's on (tap 🔈 in the demo).
+- To give a shop its own voice, create a voice profile in VoiceStudio and set that business's `voice` field (or `VOICESTUDIO_VOICE` for everyone).
+
+**License:** VoiceStudio is AGPL-3.0. SecondLine only calls it over HTTP as a separate, unmodified service, which keeps SecondLine's code separate. If you modify VoiceStudio and expose it to others over a network, you must publish your changes. Each voice *model* (OmniVoice, CosyVoice, etc.) has its own license. Check that the model you pick allows commercial use before going live.
+
+**Never use cloned or AI voices to cold-call shops.** The FCC (ruling 24-17) treats AI voices as "artificial" under the TCPA: that needs prior written consent, with fines of $500–$1,500 per call. SecondLine uses the voice only to answer calls *to* a customer's own line.
+
+## Outreach: finding shops and making the offer
+
+The flow is: find shops, then find their email, then send a 3-email sequence. Each shop gets a **personal demo page** where its own receptionist answers with its name. When a shop opens that page, you get a text right away so you can call them while they're interested. If they sign up, the founding offer is locked in on their account.
+
+```bash
+node src/outreach/cli.js find "plumber" "Austin, TX" 40   # Google Maps search; keeps reviews that say they couldn't get through
+node src/outreach/cli.js import leads.csv                 # or bring your own list: name,email,phone,website,trade,city,ownerName,quote
+node src/outreach/cli.js enrich                           # find a contact email on each shop's own website
+node src/outreach/cli.js preview                          # read the first email before anything goes out
+node src/outreach/cli.js send 10                          # send what's due (or set OUTREACH_AUTO=1)
+```
+
+Or use the web page at `/admin/leads?key=ADMIN_KEY`. From there you can find shops, look up emails and send the next batch. It shows each shop's status, the review quote, and who opened their demo. There's also a "They replied — stop emails" button.
+
+**The offer** (each term can be changed with a setting in `.env`):
+1. **It's already built.** Each email links to `/d/<shop>`, where a receptionist answers as "Riverside Plumbing's office", books a job, and shows the text the owner would get.
+2. **The hook is their own review:** "One of your Google reviews says: 'Called four times and it went straight to voicemail.'"
+3. 7 days free, no card.
+4. **No setup fee** (normally $200) for the first 10 shops, until a deadline (14 days).
+5. **Guarantee:** no job caught in the first 30 days means the second month is free.
+6. $300/month after that, cancel in two taps.
+
+**The sequence:** the first email goes out on day 0, then a follow-up on day 3 and a last note on day 7. It stops the moment a shop opts out, replies (mark it), or signs up.
+
+**Rules built into the code:**
+- Nothing sends until `OUTREACH_FROM_NAME`, `OUTREACH_FROM_EMAIL` and a real `OUTREACH_ADDRESS` are set. CAN-SPAM requires all three.
+- Every email has a one-tap opt-out link and a `List-Unsubscribe` header. Opted-out addresses are never emailed again, even if the shop is imported again.
+- The subject lines are honest and the emails are plain text.
+- There's a daily cap (25 by default). Emails only go out on weekdays, 8am–5pm, at most one a minute when automatic.
+- **Email only.** Cold texts or automated calls to shop owners' cell phones would break the TCPA, so the code doesn't do them.
+- Google review quotes are dropped after 30 days, and the demo page credits them to Google Maps (both are Google Places terms).
+- Without `RESEND_API_KEY`, it's in **practice mode**: every email is written to `data/outreach-outbox/` for you to read.
+
+**Before sending real email:** send from a separate domain (e.g. `trysecondline.com`, not your main one). Verify it in Resend and set up SPF/DKIM/DMARC. Warm it up for about 2 weeks at 10–20 emails a day.
 
 ## Cost per shop (unchanged from v0)
 

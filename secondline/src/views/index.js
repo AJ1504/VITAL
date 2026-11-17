@@ -321,7 +321,7 @@ function dashboard({ biz, stats, calls, upcoming, pilot, calUrl }) {
   let banner = '';
   if (biz.status === 'cancelled') banner = `<div class="banner paused"><span class="grow">Your second line is cancelled. You won't be charged again.</span><button class="btn sm" data-action="reactivate">Turn it back on</button></div>`;
   else if (biz.status === 'paused') banner = `<div class="banner paused"><span aria-hidden="true">⏸</span><span class="grow">Paused. Callers get a voicemail and you get a text for each one.</span></div>`;
-  else if (pilot && pilot.over && !biz.keepRequestedAt && biz.status === 'pilot') banner = `<div class="banner over"><span class="grow"><b>Your free week is done.</b><br><span style="opacity:.8">Keep it for $200 setup + $300/month. Cancel anytime.</span></span><button class="btn go sm" data-action="keep">Keep my second line</button></div>`;
+  else if (pilot && pilot.over && !biz.keepRequestedAt && biz.status === 'pilot') banner = `<div class="banner over"><span class="grow"><b>Your free week is done.</b><br><span style="opacity:.8">Keep it for ${(biz.setupFee ?? 200) ? `$${biz.setupFee ?? 200} setup + $300/month` : '$300/month — no setup fee'}. Cancel anytime.</span></span><button class="btn go sm" data-action="keep">Keep my second line</button></div>`;
   else if (pilot && pilot.over && biz.keepRequestedAt && biz.status === 'pilot') banner = `<div class="banner pilot"><span aria-hidden="true">👍</span><span class="grow">Thanks! We'll text you a payment link. Your line stays on.</span></div>`;
   else if (pilot && biz.status === 'pilot') banner = `<div class="banner pilot"><span aria-hidden="true">🎁</span><span class="grow">Free pilot — day ${pilot.day} of 7. Nothing to pay until you've seen it work.</span></div>`;
 
@@ -522,4 +522,111 @@ function notFound() {
   return page({ title: 'Not found — SecondLine', body: `<div class="wrap"><div class="topbar">${brand()}</div><h1 style="font-size:30px;margin:24px 0 10px">We couldn't find that page.</h1><p class="muted">If you're an owner looking for your dashboard, we can text you the link.</p><div class="actions"><a class="btn big block" href="/login">Text me my link</a></div></div>` });
 }
 
-module.exports = { landing, setup, dashboard, settings, goLive, login, admin, notFound, esc };
+// ---------- outreach: one personal page per shop ----------
+const LEAD_SUGGEST = {
+  plumbing: ['My basement is flooding!', 'My water heater stopped working', 'Can I talk to the owner?'],
+  hvac: ["We've got no heat and it's freezing", 'Need a furnace tune-up', 'Can I talk to the owner?'],
+  electrical: ['An outlet is sparking!', 'I want an EV charger put in', 'Can I talk to the owner?'],
+  roofing: ['My roof is leaking into the bedroom', 'Need an inspection after the storm', 'How much is a new roof?'],
+  towing: ["I'm stranded on the highway", 'Need a jump start', 'Can I talk to the owner?'],
+  locksmith: ["I'm locked out of my house", 'Want my locks rekeyed', 'Can I talk to the owner?'],
+  other: ['I need something fixed this week', 'Is this an emergency line?', 'Can I talk to the owner?'],
+};
+
+function personal({ lead, offer, demoNumber }) {
+  const deadline = lead.offerDeadline ? new Date(lead.offerDeadline) : offer.deadline;
+  const deadlineText = deadline.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const owner = lead.ownerName || 'the owner';
+  const body = `
+<header class="wrap topbar">${brand()}<span class="pill green"><span class="dot live"></span>Built for ${esc(lead.name)}</span></header>
+<main class="wrap" style="padding-bottom:48px">
+  <h1 style="font-family:var(--display);font-size:clamp(32px,8vw,44px);font-weight:800;letter-spacing:-0.03em;margin:8px 0 12px">${esc(lead.name)}, your receptionist is ready.</h1>
+  <p style="font-size:18px">It answers your phone as “${esc(lead.name)}'s office,” books the job, and texts ${lead.ownerName ? esc(owner) : 'you'} the details. Try it — you're the customer.</p>
+
+  ${lead.quote ? `<div class="card" style="margin-top:20px;border-left:5px solid var(--amber)">
+    <p class="tiny" style="font-weight:800;letter-spacing:.06em;color:var(--amber-ink)">FROM YOUR GOOGLE REVIEWS</p>
+    <p style="font-size:19px;font-weight:600;color:var(--ink);margin-top:6px">“${esc(lead.quote)}”</p>
+    <p class="small muted" style="margin-top:8px">Every call like that is a job for the next shop on the list. This one picks up every time.</p>
+  </div>` : ''}
+
+  <div style="margin-top:20px">
+    ${convoWidget({ id: 'lead-phone', name: lead.name, agent: 'Jamie', mode: 'lead', suggestions: LEAD_SUGGEST[lead.trade] || LEAD_SUGGEST.other })}
+  </div>
+  ${demoNumber ? `<a class="call-demo" href="tel:${esc(demoNumber)}"><span class="ic" aria-hidden="true">📞</span><span><span class="muted small">Or hear it on a real phone call</span><b>${esc(formatPhone(demoNumber))}</b></span></a>` : ''}
+
+  <div class="card price" style="margin-top:28px">
+    <p class="kicker" style="font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:8px">Your offer</p>
+    <div class="amt">$0<small> to start</small></div>
+    <ul>
+      <li>7 days free on your real phone line. No card.</li>
+      ${offer.setupWaived ? `<li>No setup fee — normally $${offer.setupFee}. First ${offer.spots} shops only.</li>` : `<li>$${offer.setupFee} setup — we do it all on one 30-minute call.</li>`}
+      <li>Then $${offer.monthly}/month. Cancel in two taps, no phone call.</li>
+      ${offer.guarantee ? `<li>${esc(offer.guarantee)}</li>` : ''}
+      <li>Keep your number. Nothing to install.</li>
+    </ul>
+    <a class="btn go big block" href="/start?lead=${esc(lead.slug)}">Turn it on for ${esc(lead.name)}</a>
+    <p class="small muted" style="margin-top:10px">Offer holds until ${esc(deadlineText)}.</p>
+  </div>
+  <p class="quote-line" style="margin-top:32px">One saved job a month <em>pays for the entire year.</em></p>
+  ${lead.quote ? '<p class="tiny muted center" style="margin-top:24px">Review excerpt from Google Maps.</p>' : ''}
+</main>
+<script>window.SL_LEAD = ${JSON.stringify({ slug: lead.slug, owner: lead.ownerName || 'the owner', trade: lead.trade }).replace(/</g, '\\u003c')};</script>`;
+  const html = page({ title: `${lead.name} — your receptionist`, body, display: true, scripts: ['convo.js', 'personal.js'], desc: `A receptionist built for ${lead.name}.` });
+  return html.replace('<meta name="theme-color"', '<meta name="robots" content="noindex, nofollow">\n<meta name="theme-color"');
+}
+
+function unsubscribeConfirm({ token }) {
+  return page({ title: 'Stop emails — SecondLine', body: `<div class="wrap"><div class="topbar">${brand()}</div>
+  <h1 style="font-size:28px;margin:24px 0 10px">Stop these emails?</h1>
+  <p class="muted">One tap and you won't hear from us again.</p>
+  <form method="post" action="/u/${esc(token)}"><div class="actions"><button class="btn big block">Yes, stop emailing me</button></div></form></div>` });
+}
+function unsubscribed({ ok }) {
+  return page({ title: 'Done — SecondLine', body: `<div class="wrap"><div class="topbar">${brand()}</div>
+  <h1 style="font-size:28px;margin:24px 0 10px">${ok ? "Done. You won't hear from us again." : 'That link has expired.'}</h1>
+  <p class="muted">${ok ? 'Sorry for the bother, and good luck out there.' : 'If you still get emails, just reply "stop" and we\'ll take you off by hand.'}</p></div>` });
+}
+
+const LEAD_STATUS = { new: ['Needs email', 'amber'], ready: ['Ready to send', 'ink'], 'no-email': ['No email found', ''], contacted: ['Emailed', ''], visited: ['Opened demo 🔥', 'green'], 'signed-up': ['Signed up', 'green'], replied: ['Replied', 'green'], 'not-interested': ['Not interested', ''], unsubscribed: ['Opted out', 'red'], bounced: ['Bounced', 'red'] };
+
+function adminLeads({ list, key, summary, flash, auto }) {
+  const k = encodeURIComponent(key);
+  const counts = Object.entries(summary.by).map(([st, n]) => `<span class="pill ${(LEAD_STATUS[st] || [])[1] || ''}">${esc((LEAD_STATUS[st] || [st])[0])}: ${n}</span>`).join(' ');
+  const mode = summary.senderProblems.length ? `<span class="pill red">Can't send yet — set ${esc(summary.senderProblems.join(', '))}</span>`
+    : summary.live ? `<span class="pill green">Sending real emails${auto ? ' automatically (weekdays 8–5)' : ''}</span>` : '<span class="pill amber">Practice mode — emails are saved to data/outreach-outbox, not sent</span>';
+  const body = `<div class="wrap-wide" style="padding-bottom:40px">
+  <div class="topbar">${brand()}<a class="btn ghost sm" href="/admin?key=${k}">Shops</a></div>
+  <h1 style="font-size:28px">Outreach</h1>
+  <p style="margin:10px 0" class="wrap-pills">${mode}</p>
+  <p class="small" style="display:flex;gap:6px;flex-wrap:wrap">${counts || '<span class="muted">No leads yet.</span>'} <span class="pill">Sent today: ${summary.sentToday}</span> <span class="pill">Due now: ${summary.due}</span></p>
+  ${flash ? `<div class="banner pilot" style="margin-top:12px">${esc(flash)}</div>` : ''}
+  <div class="card" style="margin-top:16px">
+    <form method="post" action="/admin/leads?key=${k}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="hidden" name="do" value="find">
+      <input class="input" style="min-height:44px;font-size:16px;max-width:200px" name="query" placeholder="plumber" required>
+      <span class="muted">in</span>
+      <input class="input" style="min-height:44px;font-size:16px;max-width:220px" name="location" placeholder="Austin, TX" required>
+      <button class="btn sm">Find shops</button>
+    </form>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <form method="post" action="/admin/leads?key=${k}"><input type="hidden" name="do" value="enrich"><button class="btn ghost sm">Look up emails</button></form>
+      <form method="post" action="/admin/leads?key=${k}"><input type="hidden" name="do" value="send"><input type="hidden" name="count" value="5"><button class="btn go sm">Send next 5 now</button></form>
+    </div>
+  </div>
+  ${list.map((l) => {
+    const [label, color] = LEAD_STATUS[l.status] || [l.status, ''];
+    return `<div class="card">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b style="color:var(--ink);font-size:18px">${esc(l.name)}</b><span class="pill ${color}">${esc(label)}${l.step ? ` · email ${l.step}/3` : ''}${l.visits ? ` · ${l.visits} visit${l.visits > 1 ? 's' : ''}` : ''}</span></div>
+    <p class="small muted">${esc(l.trade)} · ${esc(l.city || l.address)}${l.phone ? ` · <a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : ''}${l.email ? ` · ${esc(l.email)}` : ''}${l.rating ? ` · ★ ${esc(l.rating)} (${esc(l.reviewsCount)})` : ''}</p>
+    ${l.quote ? `<p class="small" style="margin-top:6px">“${esc(l.quote)}”</p>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <a class="btn ghost sm" href="/d/${esc(l.slug)}" target="_blank" rel="noopener">Their demo page</a>
+      ${['contacted', 'visited'].includes(l.status) ? `<form method="post" action="/admin/leads?key=${k}"><input type="hidden" name="do" value="mark"><input type="hidden" name="id" value="${esc(l.id)}"><input type="hidden" name="status" value="replied"><button class="btn ghost sm">They replied — stop emails</button></form>` : ''}
+    </div>
+  </div>`;
+  }).join('')}
+  </div>`;
+  return page({ title: 'Outreach — SecondLine', body });
+}
+
+module.exports = { landing, setup, dashboard, settings, goLive, login, admin, notFound, esc, personal, unsubscribeConfirm, unsubscribed, adminLeads };

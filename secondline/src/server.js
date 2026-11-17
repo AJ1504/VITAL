@@ -14,6 +14,9 @@ const twilio = require('./twilio');
 const { TRADES } = require('./trades');
 const { createNotifier, ownerSummaryText, callerConfirmation } = require('./notify');
 const views = require('./views');
+const tts = require('./tts');
+const { createOutreach } = require('./outreach/engine');
+const outreachOffer = require('./outreach/offer');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MIME = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
@@ -25,6 +28,7 @@ function createApp(opts = {}) {
   let lastBase = process.env.PUBLIC_URL || '';
   const baseUrl = () => (process.env.PUBLIC_URL || lastBase).replace(/\/$/, '');
   const notify = opts.notify || createNotifier({ store, baseUrl });
+  const outreach = createOutreach({ store, baseUrl, alert: (t) => alertAdmin(t) });
   const summarize = opts.summarize || ai.summarize;
   const demoSessions = new Map();
   const hits = new Map();
@@ -67,13 +71,15 @@ function createApp(opts = {}) {
       if (last < limit) { const biz = store.business(c.businessId); if (biz) finalize(biz, c).catch(console.error); }
     }
     for (const [k, v] of demoSessions) if (Date.now() - v.touched > 30 * 60000) demoSessions.delete(k);
+    // Outreach: at most one email a minute, so sends are naturally spread out.
+    if (process.env.OUTREACH_AUTO === '1') outreach.send({ limit: 1 }).catch((e) => console.error('[outreach]', e.message));
     // End of the free week: one text with their own numbers, then they decide.
     for (const biz of Object.values(store.data.businesses)) {
       const pi = pilotInfo(biz);
       if (biz.status !== 'pilot' || !pi || !pi.over || biz.pilotEndTextAt || !biz.ownerPhone) continue;
       store.updateBusiness(biz.id, { pilotEndTextAt: new Date().toISOString() });
       const st = stats(store, biz);
-      notify.send(biz, biz.ownerPhone, `Your free week with SecondLine is done: ${st.answered} calls answered, ${st.jobs} new jobs (about ${'$' + st.saved.toLocaleString('en-US')} of work). Want to keep it? $200 setup + $300/month, cancel anytime. Tap here: ${baseUrl()}/app/${biz.token}`, 'pilot-end').catch(console.error);
+      notify.send(biz, biz.ownerPhone, `Your free week with SecondLine is done: ${st.answered} calls answered, ${st.jobs} new jobs (about ${'$' + st.saved.toLocaleString('en-US')} of work). Want to keep it? ${priceLine(biz)}, cancel anytime. Tap here: ${baseUrl()}/app/${biz.token}`, 'pilot-end').catch(console.error);
     }
   }, 60000);
   sweeper.unref();
@@ -87,13 +93,38 @@ function createApp(opts = {}) {
     return h.n > max;
   }
 
+  // ---------- natural voice (VoiceStudio) ----------
+  async function voiceUrls(biz, text, base, timeoutMs) {
+    const keys = await tts.speak(text, { voice: biz.voice, timeoutMs });
+    return keys ? keys.map((k) => `${base || baseUrl()}/audio/${k}.${tts.ext()}`) : null;
+  }
+  function prewarmBusiness(biz) {
+    if (!tts.enabled()) return;
+    const owner = biz.ownerName || 'the owner';
+    tts.prewarm([
+      brain.greeting(biz),
+      'What can we help you with today?',
+      `I can have ${owner} call you back within the hour, or I can book you in now — which works better?`,
+      'Great, let’s get you on the schedule. Can I get your name?',
+      "What's the address for the job?",
+      'Let me check the book… Which works better?',
+      `Anything else I should pass along to ${owner}?`,
+      `Thanks for calling ${biz.name}. Take care.`,
+      "Sorry, I didn't catch that.",
+    ], biz.voice);
+  }
+  if (tts.enabled()) for (const b of Object.values(store.data.businesses)) if (['pilot', 'active'].includes(b.status)) prewarmBusiness(b);
+
   // ---------- conversation helpers shared by demo + test ----------
   async function chatStart(biz, channel) {
     const { call, say } = brain.newCall(biz, { channel });
     const key = call.id;
     demoSessions.set(key, { call, biz, touched: Date.now() });
     if (channel === 'test') store.putCall(call);
-    return { session: key, say };
+    const out = { session: key, say };
+    const audio = await voiceUrls(biz, say, '', 8000);
+    if (audio) out.audio = audio.map((u) => u.replace(/^https?:\/\/[^/]+/, ''));
+    return out;
   }
   async function chatSay(sessionKey, text, bizCheck) {
     const s = demoSessions.get(sessionKey);
@@ -102,6 +133,8 @@ function createApp(opts = {}) {
     const biz = bizCheck || s.biz;
     const r = await brain.respond(biz, s.call, String(text || '').slice(0, 400), deps(biz, s.call));
     const out = { say: r.say, end: r.end };
+    const audio = await voiceUrls(biz, r.say, '', 8000);
+    if (audio) out.audio = audio.map((u) => u.replace(/^https?:\/\/[^/]+/, ''));
     if (r.end) {
       s.call.endedAt = new Date().toISOString();
       if (s.call.channel === 'test') store.putCall(s.call);
@@ -130,6 +163,21 @@ function createApp(opts = {}) {
     const m = req.method;
 
     if (m === 'GET' && p.startsWith('/public/')) return serveStatic(res, p.slice(8));
+    let am;
+    if (m === 'GET' && (am = p.match(/^\/audio\/([a-f0-9]{32})\.[a-z0-9]+$/))) {
+      const f = tts.audioPath(am[1]);
+      if (!f) return send(res, 404, 'Not found', 'text/plain');
+      res.writeHead(200, { 'Content-Type': tts.mime(), 'Cache-Control': 'public, max-age=31536000, immutable', ...SECURITY });
+      return fs.createReadStream(f).pipe(res);
+    }
+    if (m === 'POST' && p === '/api/voice/preview') {
+      if (limited(req, 10)) return json(res, 429, { error: 'Slow down a little.' });
+      const body = await readBody(req);
+      if (!tts.enabled()) return json(res, 200, { audio: null });
+      const text = brain.greeting({ name: clean(body.name, 60) || 'your business', agentName: clean(body.agentName, 20) || 'Jamie' });
+      const audio = await voiceUrls({}, text, '', 15000);
+      return json(res, 200, { audio: audio && audio.map((u) => u.replace(/^https?:\/\/[^/]+/, '')) });
+    }
     if (m === 'GET' && p === '/health') return send(res, 200, 'ok', 'text/plain');
     if (m === 'GET' && p === '/') return html(res, views.landing({ demoNumber: process.env.DEMO_NUMBER || '' }));
     if (m === 'GET' && p === '/start') return html(res, views.setup({ trades: TRADES }));
@@ -150,6 +198,33 @@ function createApp(opts = {}) {
       return json(res, 200, await chatSay(body.session, body.text));
     }
 
+    // --- personal demo pages from outreach ---
+    let lm;
+    if (m === 'GET' && (lm = p.match(/^\/d\/([a-z0-9-]{3,60})$/))) {
+      const lead = outreach.bySlug(lm[1]);
+      if (!lead) return html(res, views.notFound(), 404);
+      outreach.visited(lead);
+      return html(res, views.personal({ lead, offer: outreachOffer.offer(), demoNumber: process.env.DEMO_NUMBER || '' }));
+    }
+    if (m === 'GET' && (lm = p.match(/^\/api\/lead\/([a-z0-9-]{3,60})$/))) {
+      const lead = outreach.bySlug(lm[1]);
+      return lead ? json(res, 200, { name: lead.name, trade: lead.trade, ownerName: lead.ownerName }) : json(res, 404, { error: 'Not found.' });
+    }
+    if (m === 'POST' && (lm = p.match(/^\/api\/lead\/([a-z0-9-]{3,60})\/start$/))) {
+      if (limited(req, 30)) return json(res, 429, { error: 'Slow down a little and try again in a minute.' });
+      const lead = outreach.bySlug(lm[1]);
+      if (!lead) return json(res, 404, { error: 'Not found.' });
+      return json(res, 200, await chatStart(leadBiz(lead), 'demo'));
+    }
+    if ((lm = p.match(/^\/u\/([\w-]{10,60})$/))) {
+      // GET shows a button (link scanners can't opt people out by accident); POST opts out.
+      if (m === 'POST') {
+        const lead = outreach.unsubscribe(lm[1]);
+        return html(res, views.unsubscribed({ ok: !!lead }));
+      }
+      return html(res, views.unsubscribeConfirm({ token: lm[1] }));
+    }
+
     // --- setup ---
     if (m === 'POST' && p === '/api/setup') {
       if (limited(req, 20)) return json(res, 429, { error: 'Too many tries. Wait a minute.' });
@@ -163,7 +238,9 @@ function createApp(opts = {}) {
         agentName: clean(body.agentName, 20) || 'Jamie', greeting: clean(body.greeting, 200),
         timezone: validTz(body.timezone), jobValue: TRADES[trade].jobValue, callbackMinutes: 60,
         status: 'setup', lineNumber: null,
+        ...leadTerms(body.lead),
       });
+      if (body.lead) outreach.signedUp(String(body.lead), biz.id);
       return json(res, 200, { token: biz.token, greeting: brain.greeting(biz) });
     }
 
@@ -208,6 +285,7 @@ function createApp(opts = {}) {
             } catch (e) { console.error('[number] could not get a number:', e.message); }
           }
           store.updateBusiness(biz.id, patch);
+          prewarmBusiness(biz);
           if (biz.ownerPhone) {
             await notify.send(biz, biz.ownerPhone, `Your second line for ${biz.name} is ready${biz.lineNumber ? ` — ${brain.formatPhone(biz.lineNumber)}` : ''}. Save this link, it's your dashboard: ${baseUrl()}/app/${biz.token}`, 'welcome');
           }
@@ -235,6 +313,7 @@ function createApp(opts = {}) {
           const prev = {};
           for (const k of Object.keys(patch)) prev[k] = biz[k] ?? null;
           store.updateBusiness(biz.id, normalizePatch(patch));
+          prewarmBusiness(biz);
           return json(res, 200, { ok: true, previous: prev, greeting: brain.greeting(biz) });
         }
         case 'call-done': {
@@ -263,6 +342,23 @@ function createApp(opts = {}) {
         return send(res, 403, 'Bad signature', 'text/plain');
       }
       return twilioRoute(p, url, params, res);
+    }
+
+    // --- outreach view for Aakarsh ---
+    if (p === '/admin/leads') {
+      const key = process.env.ADMIN_KEY;
+      if (!key || url.searchParams.get('key') !== key) return html(res, views.notFound(), 404);
+      let flash = '';
+      if (m === 'POST') {
+        const body = await readBody(req);
+        if (body.do === 'send') { const r = await outreach.send({ limit: +body.count || 5, ignoreWindow: true }); flash = r.blocked || `Sent ${r.sent}.`; }
+        else if (body.do === 'enrich') { const r = await outreach.enrich({ limit: 30 }); flash = `Found ${r.found} emails, ${r.missing} without.`; }
+        else if (body.do === 'find') {
+          try { const r = await outreach.find({ query: clean(body.query, 60), location: clean(body.location, 60), max: 40 }); flash = `Found ${r.found} shops, ${r.added} new, ${r.withQuote} with a missed-call review.`; } catch (e) { flash = e.message; }
+        } else if (body.do === 'mark') { outreach.mark(body.id, body.status); flash = 'Updated.'; }
+      }
+      const list = Object.values(store.data.leads).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return html(res, views.adminLeads({ list, key, summary: outreach.summary(), flash, auto: process.env.OUTREACH_AUTO === '1' }));
     }
 
     // --- operator view for Aakarsh ---
@@ -294,7 +390,7 @@ function createApp(opts = {}) {
       }
       const { call, say } = brain.newCall(biz, { channel: 'voice', callerPhone: params.From, externalId: params.CallSid });
       store.putCall(call);
-      return xmlOut(twilio.twiml.ask(say, `${base}/voice/turn?call=${call.id}`));
+      return xmlOut(twilio.twiml.ask(say, `${base}/voice/turn?call=${call.id}`, await voiceUrls(biz, say, base)));
     }
 
     if (p === '/voice/turn') {
@@ -303,11 +399,12 @@ function createApp(opts = {}) {
       if (!call || !biz) return xmlOut(twilio.twiml.sayAndHangUp('Sorry, something went wrong on our end. Please call back.'));
       const r = await brain.respond(biz, call, params.SpeechResult || '', deps(biz, call));
       store.putCall(call);
+      const audio = await voiceUrls(biz, r.say, base);
       if (r.end) {
         finalize(biz, call).catch(console.error);
-        return xmlOut(twilio.twiml.sayAndHangUp(r.say));
+        return xmlOut(twilio.twiml.sayAndHangUp(r.say, audio));
       }
-      return xmlOut(twilio.twiml.ask(r.say, `${base}/voice/turn?call=${call.id}`));
+      return xmlOut(twilio.twiml.ask(r.say, `${base}/voice/turn?call=${call.id}`, audio));
     }
 
     if (p === '/voice/status') {
@@ -418,6 +515,26 @@ function takeFromPool(store) {
 }
 
 const DEMO_PEOPLE = { plumbing: ['Riverside Plumbing', 'Mike'], hvac: ['Northside Heating & Air', 'Dave'], electrical: ['Brightline Electric', 'Carlos'], roofing: ['Summit Roofing', 'Jen'], towing: ['Route 9 Towing', 'Rick'], locksmith: ['Keystone Locksmith', 'Tony'], other: ['Hometown Repair', 'Sam'] };
+// Offer terms are locked in the moment a shop from outreach signs up.
+function leadTerms(slug) {
+  if (!slug) return {};
+  const o = outreachOffer.offer();
+  return { leadSlug: String(slug).slice(0, 60), setupFee: o.setupWaived ? 0 : o.setupFee, guarantee: o.guarantee };
+}
+function priceLine(biz) {
+  const fee = biz.setupFee ?? 200;
+  return fee ? `$${fee} setup + $300/month` : '$300/month (no setup fee)';
+}
+
+// A lead's personal demo: their name, their trade, usual hours.
+function leadBiz(lead) {
+  const t = TRADES[lead.trade] || TRADES.other;
+  return {
+    id: `lead-${lead.id}`, demo: true, name: lead.name, ownerName: lead.ownerName || 'the owner', agentName: 'Jamie', trade: lead.trade,
+    services: t.services, hours: cal.DEFAULT_HOURS, timezone: process.env.DEMO_TZ || 'America/New_York', jobValue: t.jobValue, status: 'active',
+  };
+}
+
 function demoBiz(store, trade) {
   const [name, owner] = DEMO_PEOPLE[trade] || DEMO_PEOPLE.plumbing;
   return {
@@ -527,4 +644,4 @@ function loadDotEnv() {
   }
 }
 
-module.exports = { createApp, stats, pilotInfo };
+module.exports = { createApp, stats, pilotInfo, priceLine };

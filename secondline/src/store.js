@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const EMPTY = () => ({ businesses: {}, calls: {}, bookings: {}, outbox: [] });
+const EMPTY = () => ({ businesses: {}, calls: {}, bookings: {}, outbox: [], leads: {}, suppressed: {} });
 
 class Store {
   constructor(file) {

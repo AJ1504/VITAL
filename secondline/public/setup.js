@@ -13,7 +13,21 @@
   if (!state.agentName) state.agentName = 'Jamie';
   try { state.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { /* keep default */ }
 
-  var resume = new URLSearchParams(location.search).get('resume');
+  var params = new URLSearchParams(location.search);
+  var resume = params.get('resume');
+  // Coming from a personal demo page: fill in what we already know.
+  var leadSlug = params.get('lead');
+  if (leadSlug && /^[a-z0-9-]{3,60}$/.test(leadSlug)) {
+    state.lead = leadSlug;
+    fetch('/api/lead/' + leadSlug).then(function (r) { return r.ok ? r.json() : null; }).then(function (l) {
+      if (!l) return;
+      if (!state.name) state.name = l.name;
+      if (!state.trade) state.trade = l.trade;
+      if (!state.ownerName && l.ownerName) state.ownerName = l.ownerName;
+      save();
+      if (ORDER[current] === 'name') show(current);
+    }).catch(function () { /* fine, they type it */ });
+  }
   if (resume) state.token = resume;
 
   function load() { try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { return null; } }
@@ -59,7 +73,7 @@
       AGENTS.forEach(function (n) {
         var c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.textContent = n;
         c.setAttribute('aria-pressed', n === state.agentName);
-        c.onclick = function () { state.agentName = n; save(); enter.voice(s); window.SLspeak(greeting()); };
+        c.onclick = function () { state.agentName = n; save(); enter.voice(s); playGreeting(); };
         box.appendChild(c);
       });
       $('[data-greeting]', s).textContent = greeting();
@@ -111,7 +125,7 @@
   function createBusiness() {
     var btn = $('[data-screen="voice"] [data-next]');
     btn.disabled = true; btn.textContent = 'Setting up…';
-    var payload = { name: state.name, trade: state.trade, ownerName: state.ownerName, ownerPhone: state.ownerPhone, hours: state.hours, services: state.services, agentName: state.agentName, timezone: state.timezone };
+    var payload = { lead: state.lead, name: state.name, trade: state.trade, ownerName: state.ownerName, ownerPhone: state.ownerPhone, hours: state.hours, services: state.services, agentName: state.agentName, timezone: state.timezone };
     var req = state.token
       ? window.SLpost('/api/biz/' + state.token + '/update', payload).then(function (r) { if (r.error === 'Link not found.') { state.token = null; return window.SLpost('/api/setup', payload); } return { token: state.token, error: r.error }; })
       : window.SLpost('/api/setup', payload);
@@ -146,7 +160,12 @@
     ed.hidden = !ed.hidden;
     if (!ed.hidden) window.SLHours.HoursEditor(ed, state.hours, function () { save(); enter.hours(); });
   });
-  $('[data-play]').addEventListener('click', function () { window.SLspeak(greeting()); });
+  function playGreeting() {
+    window.SLpost('/api/voice/preview', { name: state.name, agentName: state.agentName })
+      .then(function (r) { window.SLvoice(greeting(), r && r.audio); })
+      .catch(function () { window.SLspeak(greeting()); });
+  }
+  $('[data-play]').addEventListener('click', playGreeting);
   $('[data-golive]').addEventListener('click', function () {
     var b = this; b.disabled = true; b.textContent = 'Turning it on…';
     window.SLpost('/api/biz/' + state.token + '/golive').then(function (r) {
